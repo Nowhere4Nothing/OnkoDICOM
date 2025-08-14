@@ -10,13 +10,13 @@ from src.Controller.PathHandler import resource_path
 class ImageFusionProgressWindow(ProgressWindow):
 
     def __init__(self, *args,
-                 kwargs=QtCore.Qt.WindowTitleHint | 
+                 kwargs=QtCore.Qt.WindowTitleHint |
                  QtCore.Qt.WindowCloseButtonHint):
         super(ImageFusionProgressWindow, self).__init__(*args, kwargs)
         self.setFixedSize(250, 100)
 
     def start_loading(self, selected_files, existing_rtss=None):
-        image_loader = MovingImageLoader(
+        image_loader = MovingImageLoader( 
             selected_files, existing_rtss, self)
         image_loader.signal_request_calc_dvh.connect(
             self.prompt_calc_dvh)
