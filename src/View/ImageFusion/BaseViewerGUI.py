@@ -16,55 +16,60 @@ class BaseFusionView(DicomView):
         self.base_item = None
         self.update_view()
 
-    def image_display(self, overlay_image=None):
+    def image_display(self):
         """
-                Update the image to be displayed on the DICOM View.
-                If overlay_image is provided, use it as the overlay for this view.
-                Also ensures overlay_item is created and positioned correctly.
-                """
+        Update the image to be displayed on the DICOM View.
+
+        Base DICOM image is always displayed. Overlay images are drawn on top
+        with offsets applied.
+        """
         slider_id = self.slider.value()
+        pixmaps = self.patient_dict_container.get("pixmaps_" + self.slice_view)
 
-        if overlay_image is not None:
-            image = overlay_image
-        elif self.overlay_images is not None:
-            if 0 <= slider_id < len(self.overlay_images):
-                image = self.overlay_images[slider_id]
-            else:
-                return
-        else:
-            pixmaps = self.patient_dict_container.get(f"color_{self.slice_view}")
-            if pixmaps is None:
-                return  # Prevent NoneType subscriptable error
-            if 0 <= slider_id < len(pixmaps):
-                image = pixmaps[slider_id]
-            else:
-                return
+        if pixmaps is None:
+            print(f"[image_display] No base pixmaps found for slice_view: {self.slice_view}")
+            return
+        if not (0 <= slider_id < len(pixmaps)):
+            print(f"[image_display] Slider index {slider_id} out of range")
+            return
 
-        # Update or create the base image item
+        # ----------------------------
+        # 1. Display or update the base image
+        # ----------------------------
+        base_image = pixmaps[slider_id]
+
         if self.base_item is None:
-            self.base_item = QtWidgets.QGraphicsPixmapItem(image)
+            self.base_item = QtWidgets.QGraphicsPixmapItem(base_image)
             self.scene.addItem(self.base_item)
+            print(f"[image_display] Creating base_item")
         else:
-            self.base_item.setPixmap(image)
+            self.base_item.setPixmap(base_image)
+            print(f"[image_display] Updating existing base_item pixmap")
 
-            # Update or create the overlay item
+        # ----------------------------
+        # 2. Display or update overlay image (if any)
+        # ----------------------------
         if self.overlay_images is not None and 0 <= slider_id < len(self.overlay_images):
             overlay_pixmap = self.overlay_images[slider_id]
+
             if self.overlay_item is None:
                 self.overlay_item = QtWidgets.QGraphicsPixmapItem(overlay_pixmap)
-                self.overlay_item.setZValue(1)  # Ensure overlay is below cut lines
+                self.overlay_item.setZValue(1)  # ensure overlay is on top
                 offset = getattr(self, "overlay_offset", (0, 0))
                 self.overlay_item.setPos(offset[0], offset[1])
                 self.scene.addItem(self.overlay_item)
+                print(f"[image_display] Creating overlay_item at offset {offset}")
             else:
                 self.overlay_item.setPixmap(overlay_pixmap)
                 offset = getattr(self, "overlay_offset", (0, 0))
                 self.overlay_item.setPos(offset[0], offset[1])
+                print(f"[image_display] Updating overlay_item and moving to offset {offset}")
         else:
-            self.overlay_item = None
-
-
-
+            # No overlay for this slice
+            if self.overlay_item is not None:
+                self.scene.removeItem(self.overlay_item)
+                self.overlay_item = None
+                print(f"[image_display] No overlay images for this slice, overlay_item removed")
 
     def roi_display(self):
         """

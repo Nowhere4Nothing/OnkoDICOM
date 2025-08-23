@@ -426,7 +426,8 @@ class UIMainWindow:
         moving_dict_container = MovingDictContainer()
 
         # Only check for modality if dataset is not None
-        if moving_dict_container.dataset is not None and moving_dict_container.has_modality("rtss") and len(self.structures_tab.rois.items()) == 0:
+        if (moving_dict_container.dataset is not None and moving_dict_container.has_modality("rtss") and
+                len(self.structures_tab.rois.items()) == 0):
             self.structures_tab.update_ui(moving=True)
 
         self.image_fusion_single_view = ImageFusionAxialView()
@@ -435,10 +436,13 @@ class UIMainWindow:
         self.image_fusion_view_axial = ImageFusionAxialView(
             metadata_formatted=False,
             cut_line_color=QtGui.QColor(255, 0, 0))
+
         self.image_fusion_view_sagittal = ImageFusionSagittalView(
             cut_line_color=QtGui.QColor(0, 255, 0))
+
         self.image_fusion_view_coronal = ImageFusionCoronalView(
             cut_line_color=QtGui.QColor(0, 0, 255))
+
         self.image_fusion_roi_transfer_option_view = ROITransferOptionView(
             self.structures_tab.fixed_container_structure_modified,
             self.structures_tab.moving_container_structure_modified)
