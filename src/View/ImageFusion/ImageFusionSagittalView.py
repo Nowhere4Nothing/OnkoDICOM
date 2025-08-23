@@ -59,10 +59,27 @@ class ImageFusionSagittalView(DicomView):
                 roi_name][curr_slice]
             super().draw_roi_polygons(roi, polygons)
 
+    def update_overlay_offset(self, offset):
+        """
+        Apply translation to the overlay image.
+        offset: tuple (x, y)
+        """
+        self.overlay_offset = offset
+        self.refresh_overlay()
 
+    def refresh_overlay(self):
+        """
+        Repaint the overlay image with the applied offset.
+        """
+        if self.overlay_images is not None:
+            slider_id = self.slider.value()
+            if slider_id >= len(self.overlay_images):
+                return
 
-# from src.View.ImageFusion.BaseViewerGUI import BaseFusionView
-#
-# class ImageFusionSagittalView(BaseFusionView):
-#     def __init__(self, roi_color=None, iso_color=None, cut_line_color=None):
-#         super().__init__('sagittal', roi_color, iso_color, cut_line_color)
+            # Only move the overlay_item if it exists
+            if hasattr(self, "overlay_item") and self.overlay_item is not None:
+                self.overlay_item.setPos(self.overlay_offset[0], self.overlay_offset[1])
+                self.scene.update()
+                if hasattr(self, "viewport"):
+                    self.viewport().update()
+
