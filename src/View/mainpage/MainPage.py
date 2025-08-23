@@ -29,8 +29,7 @@ from src.View.PTCTFusion.PETCTView import PetCtView
 from src.View.ProgressWindow import ProgressWindow
 
 from src.View.ImageFusion.ImageFusionAxialView import ImageFusionAxialView
-from src.View.ImageFusion.ImageFusionSagittalView import \
-    ImageFusionSagittalView
+from src.View.ImageFusion.ImageFusionSagittalView import ImageFusionSagittalView
 from src.View.ImageFusion.ImageFusionCoronalView import ImageFusionCoronalView
 from src.Model.MovingDictContainer import MovingDictContainer
 
@@ -431,8 +430,8 @@ class UIMainWindow:
             self.structures_tab.update_ui(moving=True)
 
         self.image_fusion_single_view = ImageFusionAxialView()
-
         self.image_fusion_view = QStackedWidget()
+
         self.image_fusion_view_axial = ImageFusionAxialView(
             metadata_formatted=False,
             cut_line_color=QtGui.QColor(255, 0, 0))
@@ -442,6 +441,7 @@ class UIMainWindow:
 
         self.image_fusion_view_coronal = ImageFusionCoronalView(
             cut_line_color=QtGui.QColor(0, 0, 255))
+
 
         self.image_fusion_roi_transfer_option_view = ROITransferOptionView(
             self.structures_tab.fixed_container_structure_modified,
