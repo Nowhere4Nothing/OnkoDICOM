@@ -1,8 +1,4 @@
 from PySide6 import QtWidgets, QtCore
-
-from src.View.mainpage.DicomView import DicomView, GraphicsScene
-
-
 from src.View.ImageFusion.BaseViewerGUI import BaseFusionView
 
 class ImageFusionAxialView(BaseFusionView):
@@ -18,7 +14,8 @@ class ImageFusionAxialView(BaseFusionView):
         """
         self.slice_view = 'axial'
         self.metadata_formatted = metadata_formatted
-        super().__init__('axial', roi_color, iso_color, cut_line_color, vtk_engine=vtk_engine, translation_menu=translation_menu)
+        super().__init__('axial', roi_color, iso_color, cut_line_color,
+                         vtk_engine=vtk_engine, translation_menu=translation_menu)
 
         # Init metadata widgets
         self.metadata_layout = QtWidgets.QVBoxLayout(self.view)
@@ -171,15 +168,6 @@ class ImageFusionAxialView(BaseFusionView):
             else:
                 stylesheet = "QLabel { color : white; }"
             self.format_metadata_labels(stylesheet)
-        
-    def update_view(self, zoom_change=False):
-        """
-        Update the view of the DICOM Image.
-        :param zoom_change: Boolean indicating whether the user wants 
-        to change the zoom. False by default.
-        """
-        super().update_view(zoom_change)
-        self.update_metadata()
 
     def update_metadata(self):
         """
@@ -215,19 +203,4 @@ class ImageFusionAxialView(BaseFusionView):
         self.label_zoom.setText(
             "Zoom: " + "{:.2f}".format(self.zoom * 100) + "%")
 
-    def roi_display(self):
-        """
-        Display ROI structures on the DICOM Image.
-        """
-        slider_id = self.slider.value()
-        curr_slice = self.patient_dict_container.get("dict_uid")[slider_id]
 
-        selected_rois = self.patient_dict_container.get("selected_rois")
-        rois = self.patient_dict_container.get("rois")
-        selected_rois_name = []
-        selected_rois_name.extend(rois[roi]['name'] for roi in selected_rois)
-        for roi in selected_rois:
-            roi_name = rois[roi]['name']
-            polygons = self.patient_dict_container.get("dict_polygons_axial")[
-                roi_name][curr_slice]
-            super().draw_roi_polygons(roi, polygons)

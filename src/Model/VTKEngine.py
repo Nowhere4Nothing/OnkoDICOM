@@ -72,9 +72,10 @@ class VTKEngine:
         r.Update()
         self.moving_reader = r
         self.reslice3d.SetInputConnection(r.GetOutputPort())
+        self._sync_reslice_output_to_fixed()
         self._apply_transform()
         self._wire_blend()
-        self._sync_reslice_output_to_fixed()
+
         return True
 
     def set_opacity(self, alpha: float):

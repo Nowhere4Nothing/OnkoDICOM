@@ -9,8 +9,17 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
     def __init__(self, label: QtWidgets.QGraphicsPixmapItem, horizontal_view, vertical_view):
         super(GraphicsScene, self).__init__()
         self.addItem(label)
-        self.init_width = self.width()
-        self.init_height = self.height()
+
+        if label is not None and not label.pixmap().isNull():
+            pixmap_size = label.pixmap().size()
+            self.init_width = pixmap_size.width()
+            self.init_height = pixmap_size.height()
+            # set scene rect so mouse events cover full pixmap
+            self.setSceneRect(0, 0, self.init_width, self.init_height)
+        else:
+            self.init_width = 0
+            self.init_height = 0
+
         self.horizontal_view = horizontal_view
         self.vertical_view = vertical_view
         self.horizontal_line = None
@@ -69,18 +78,22 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
         if self.horizontal_view is not None and self.vertical_view is not None:
             self.remove_cut_lines()
             current_position = event.scenePos()
-            vertical_line_x = current_position.x()
-            horizontal_line_y = current_position.y()
+            self._extracted_from_mouseMoveEvent_5(current_position)
 
-            self.add_cut_lines(vertical_line_x, horizontal_line_y)
-            self.update_slider(vertical_line_x, horizontal_line_y)
 
     def mouseMoveEvent(self, event: QtWidgets.QGraphicsSceneMouseEvent) -> None:
         if self.horizontal_view is not None and self.vertical_view is not None:
             self.remove_cut_lines()
             current_position = event.scenePos()
-            vertical_line_x = current_position.x()
-            horizontal_line_y = current_position.y()
+            view_pos = event.pos()
+            print(f"Scene coordinates: x={current_position.x()}, y={current_position.y()}")
+            self._extracted_from_mouseMoveEvent_5(current_position)
+            print(f"Scene pos: {current_position}, pixmap size: ({self.init_width}, {self.init_height})")
 
-            self.add_cut_lines(vertical_line_x, horizontal_line_y)
-            self.update_slider(vertical_line_x, horizontal_line_y)
+    # TODO Rename this here and in `mousePressEvent` and `mouseMoveEvent`
+    def _extracted_from_mouseMoveEvent_5(self, current_position):
+        vertical_line_x = current_position.x()
+        horizontal_line_y = current_position.y()
+        self.add_cut_lines(vertical_line_x, horizontal_line_y)
+        self.update_slider(vertical_line_x, horizontal_line_y)
+

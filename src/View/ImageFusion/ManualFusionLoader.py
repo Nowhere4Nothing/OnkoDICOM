@@ -39,12 +39,22 @@ class ManualFusionLoader(QtCore.QObject):
         if not fixed_loaded:
             raise RuntimeError("Failed to load fixed image with VTK.")
 
+            # --- Print fixed image info ---
+        fixed_output = engine.fixed_reader.GetOutput()
+        print("Fixed image extent:", fixed_output.GetExtent())  # (xmin, xmax, ymin, ymax, zmin, zmax)
+        print("Fixed image spacing:", fixed_output.GetSpacing())  # (sx, sy, sz)
+
         if progress_callback is not None:
             progress_callback.emit(("Loading overlay image (VTK)...", 50))
 
         moving_loaded = engine.load_moving(moving_dir)
         if not moving_loaded:
             raise RuntimeError("Failed to load moving image with VTK.")
+
+        # --- PRINT MOVING IMAGE INFO ---
+        moving_img = engine.reslice3d.GetOutput()
+        print(f"Moving image extent after reslice: {moving_img.GetExtent()}")
+        print(f"Moving image spacing after reslice: {moving_img.GetSpacing()}")
 
         if progress_callback is not None:
             progress_callback.emit(("Finalising", 90))

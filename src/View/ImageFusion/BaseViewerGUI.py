@@ -45,6 +45,8 @@ class BaseFusionView(DicomView):
         self._refresh_timer.setSingleShot(True)
         self._refresh_timer.timeout.connect(self.refresh_overlay_now)
 
+
+
     def set_slider_range_from_vtk(self):
         """
         Set the slider min/max to match the VTK extent for this orientation.
@@ -95,52 +97,86 @@ class BaseFusionView(DicomView):
                     "Please check your DICOM data or transformation settings."
                 )
                 return
+
             pixmap = QtGui.QPixmap.fromImage(qimg)
-            # Display as the base image (no overlay needed, since VTKEngine blends)
-            if self.base_item is None:
-                self.base_item = QtWidgets.QGraphicsPixmapItem(pixmap)
-                self.scene.addItem(self.base_item)
-            else:
-                self.base_item.setPixmap(pixmap)
-            # Remove overlay item if present
-            if self.overlay_item is not None:
+
+            # Recreate GraphicsScene so cut lines are kept in sync
+            self.base_item = QtWidgets.QGraphicsPixmapItem(pixmap)
+            self.base_item.setPos(0,0)
+            self.base_item.setZValue(0)
+
+            self.scene = GraphicsScene(self.base_item, self.horizontal_view, self.vertical_view)
+            self.view.setScene(self.scene)
+
+            # Remove old overlay if present
+            if getattr(self, "overlay_item", None) is not None:
                 self.scene.removeItem(self.overlay_item)
                 self.overlay_item = None
+
             return
+
+            # # Display as the base image (no overlay needed, since VTKEngine blends)
+            # if self.base_item is None:
+            #     self.base_item = QtWidgets.QGraphicsPixmapItem(pixmap)
+            #     self.scene.addItem(self.base_item)
+            # else:
+            #     self.base_item.setPixmap(pixmap)
+            #
+            # # Ensure cut lines are redrawn and on top after scene is set
+            # if hasattr(self, "draw_cut_lines"):
+            #         self.draw_cut_lines()
+            #
+            # # Remove overlay item if present
+            # if self.overlay_item is not None:
+            #     self.scene.removeItem(self.overlay_item)
+            #     self.overlay_item = None
+            # return
 
         # Legacy (non-vtk) logic below
         # Base image (fixed)
-        pixmaps = self.patient_dict_container.get(f"color_{self.slice_view}")
-        if pixmaps is None or not (0 <= slider_id < len(pixmaps)):
-            return
-        image = pixmaps[slider_id]
+        # pixmaps = self.patient_dict_container.get(f"color_{self.slice_view}")
+        # if pixmaps is None or not (0 <= slider_id < len(pixmaps)):
+        #     return
+        #
+        # image = pixmaps[slider_id]
 
-        # Update or create the base image item
-        if self.base_item is None:
-            self.base_item = QtWidgets.QGraphicsPixmapItem(image)
-            self.scene.addItem(self.base_item)
-        else:
-            self.base_item.setPixmap(image)
+        # # Always recreate scene to ensure mouse events propagate
+        # self.base_item = QtWidgets.QGraphicsPixmapItem(image)
+        # self.base_item.setZValue(0)
+        # self.scene = GraphicsScene(self.base_item, self.horizontal_view, self.vertical_view)
+        # self.view.setScene(self.scene)
+        #
+        # # Update or create the base image item
+        # if self.base_item is None:
+        #     self.base_item = QtWidgets.QGraphicsPixmapItem(image)
+        #     self.scene.addItem(self.base_item)
+        #     self.base_item.setZValue(0)
+        #
+        #     if hasattr(self, 'scene'):
+        #         for line in self.scene.cut_lines:
+        #             line.setZValue(1)
+        # else:
+        #     self.base_item.setPixmap(image)
 
-        # Overlay image (moving)
-        overlay_pixmap = None
-        if self.overlay_images is not None and 0 <= slider_id < len(self.overlay_images):
-            overlay_pixmap = self.overlay_images[slider_id]
-
-        # Update or create the overlay item
-        if overlay_pixmap is not None:
-            if self.overlay_item is None:
-                self.overlay_item = QtWidgets.QGraphicsPixmapItem(overlay_pixmap)
-                self.overlay_item.setZValue(1)  # Ensure overlay is below cut lines
-                offset = getattr(self, "overlay_offset", (0, 0))
-                self.overlay_item.setPos(offset[0], offset[1])
-                self.scene.addItem(self.overlay_item)
-            else:
-                self.overlay_item.setPixmap(overlay_pixmap)
-                offset = getattr(self, "overlay_offset", (0, 0))
-                self.overlay_item.setPos(offset[0], offset[1])
-        else:
-            self.overlay_item = None
+        # # Overlay image (moving)
+        # overlay_pixmap = None
+        # if self.overlay_images is not None and 0 <= slider_id < len(self.overlay_images):
+        #     overlay_pixmap = self.overlay_images[slider_id]
+        #
+        # # Update or create the overlay item
+        # if overlay_pixmap is not None:
+        #     if self.overlay_item is None:
+        #         self.overlay_item = QtWidgets.QGraphicsPixmapItem(overlay_pixmap)
+        #         self.overlay_item.setZValue(1)  # Ensure overlay is below cut lines
+        #         offset = getattr(self, "overlay_offset", (0, 0))
+        #         self.overlay_item.setPos(offset[0], offset[1])
+        #         self.scene.addItem(self.overlay_item)
+        #     else:
+        #         self.overlay_item.setPixmap(overlay_pixmap)
+        #         offset = getattr(self, "overlay_offset", (0, 0))
+        #         self.overlay_item.setPos(offset[0], offset[1])
+        # else:
+        #     self.overlay_item = None
 
     def roi_display(self):
         """
