@@ -132,13 +132,22 @@ class VTKEngine:
 
             if orientation == VTKEngine.ORI_AXIAL:
                 z = int(np.clip(slice_idx - extent[4], 0, nz - 1))
-                arr2d = np.flipud(arr[z, :, :])
+                arr2d = np.flipud(arr[z, :, :])  # Flip upside down for axial
             elif orientation == VTKEngine.ORI_CORONAL:
                 y = int(np.clip(slice_idx - extent[2], 0, ny - 1))
-                arr2d = arr[:, y, :]
+                # To invert the order of slices on the coronal plane, invert the index:
+                # Instead of y, use (ny - 1 - (slice_idx - extent[2]))
+                inv_y = ny - 1 - (slice_idx - extent[2])
+                inv_y = int(np.clip(inv_y, 0, ny - 1))
+                arr2d = arr[:, inv_y, :]
             elif orientation == VTKEngine.ORI_SAGITTAL:
                 x = int(np.clip(slice_idx - extent[0], 0, nx - 1))
                 arr2d = arr[:, :, x]
+                arr2d = np.fliplr(arr2d)  # Flip back-to-front for sagittal
+
+
+
+
             else:
                 return None
 
