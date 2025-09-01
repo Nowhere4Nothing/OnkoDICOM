@@ -1,6 +1,9 @@
 from PySide6 import QtCore
 import logging
 import os
+
+from vtkmodules.util import numpy_support
+
 from src.Model.PatientDictContainer import PatientDictContainer
 from src.Model.VTKEngine import VTKEngine
 
@@ -64,3 +67,48 @@ class ManualFusionLoader(QtCore.QObject):
         self.signal_loaded.emit((True, {
             "vtk_engine": engine,
         }))
+
+    def on_manual_fusion_loaded(self, result):
+        success, data = result
+        if not success:
+            print("Manual fusion load failed:", data)
+            return
+
+        engine = data["vtk_engine"]
+
+        if hasattr(engine, "get_fixed_image"):
+            fixed_image = engine.get_fixed_image()
+        elif hasattr(engine, "fixed_reader") and hasattr(engine.fixed_reader, "GetOutput"):
+            fixed_image = engine.fixed_reader.GetOutput()
+        else:
+            fixed_image = None
+
+        if hasattr(engine, "get_moving_image"):
+            moving_image = engine.get_moving_image()
+        elif hasattr(engine, "moving_reader") and hasattr(engine.moving_reader, "GetOutput"):
+            moving_image = engine.moving_reader.GetOutput()
+        else:
+            moving_image = None
+
+            # Save manual fusion in PatientDictContainer
+        patient_dict_container = PatientDictContainer()
+        # You can store a tuple (fixed, moving, optional tfm)
+        patient_dict_container.set("manual_fusion", (fixed_image, moving_image, None))
+
+        if hasattr(fixed_image, "GetPointData"):  # VTK image
+            dims = fixed_image.GetDimensions()
+            scalars = fixed_image.GetPointData().GetScalars()
+            np_img = numpy_support.vtk_to_numpy(scalars).reshape(dims[::-1])
+            fixed_image_array = np_img
+        elif hasattr(fixed_image, "GetArrayFromImage"):  # SimpleITK image
+            import SimpleITK as sitk
+            fixed_image_array = sitk.GetArrayFromImage(fixed_image)
+        else:
+            fixed_image_array = fixed_image  # assume already numpy
+
+            # Trigger a refresh of fusion views (forces fusion update)
+            from src.Model.Windowing import windowing_model_direct
+            window = patient_dict_container.get("window") or 1600
+            level = patient_dict_container.get("level") or 0
+            # Pass the fixed_image_array to windowing_model_direct for correct pixmap generation
+            windowing_model_direct(level=level, window=window, init=[False, False, False, True], fixed_image_array=fixed_image_array)

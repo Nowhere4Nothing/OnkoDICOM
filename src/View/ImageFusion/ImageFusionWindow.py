@@ -662,9 +662,10 @@ class UIImageFusionWindow(object):
 
     def on_loaded(self, results):
         """
-        Executes when the progress bar finishes loaded the selected files.
-        Emits a wrapper object that provides update_progress for compatibility with the main window.
-        """
+          Executes when the progress bar finishes loaded the selected files.
+          Emits a wrapper object that provides update_progress for compatibility with the main window.
+          Also sets manual_fusion in PatientDictContainer if manual fusion was used.
+          """
         # Handle both manual and auto fusion result types
         if isinstance(results, tuple) and results[0] is True:
             # Manual fusion: results is (True, images_dict)
@@ -673,6 +674,10 @@ class UIImageFusionWindow(object):
                 # Manual fusion: add dummy keys for main window compatibility
                 images["fixed_image"] = None
                 images["moving_image"] = None
+                # --- Set manual_fusion in PatientDictContainer ---
+                from src.View.ImageFusion.ManualFusionLoader import ManualFusionLoader
+                loader = ManualFusionLoader([], None)  # dummy loader for static call
+                loader.on_manual_fusion_loaded((True, images))
             wrapper = FusionResultWrapper(images, self.progress_window)
             self.image_fusion_info_initialized.emit(wrapper)
         elif hasattr(results, "update_progress"):
@@ -682,8 +687,6 @@ class UIImageFusionWindow(object):
         else:
             # Unexpected result type
             QMessageBox.warning(self, "Fusion Error", "Unexpected result type returned from fusion loader.")
-
-
 
 
     def on_loading_error(self, exception):

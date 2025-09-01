@@ -10,6 +10,7 @@ from src.Controller.MainPageController import MainPageCallClass
 from src.Controller.ROIOptionsController import ROIDrawOption
 from src.Model.PatientDictContainer import PatientDictContainer
 from src.Model.SUV2ROI import SUV2ROI
+from src.Model.Windowing import set_windowing_slider
 from src.View.ImageFusion.ROITransferOptionView import ROITransferOptionView
 from src.View.mainpage.DVHTab import DVHTab
 from src.View.mainpage.DicomTreeView import DicomTreeView
@@ -121,7 +122,7 @@ class UIMainWindow:
         self.splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
 
         # Left panel contains stuctures tab, isodoses tab,
-        # and structure information
+        # and structure informationFc
         self.left_panel = QtWidgets.QTabWidget()
         self.left_panel.setMinimumWidth(300)
         self.left_panel.setMaximumWidth(500)
@@ -490,7 +491,7 @@ class UIMainWindow:
             self.fusion_options_tab.set_get_vtk_engine_callback(lambda: vtk_engine)
             self.left_panel.addTab(self.fusion_options_tab, "Fusion Options")
             self.left_panel.setCurrentWidget(self.fusion_options_tab)
-    
+
 
         # VTKEngine integration
         vtk_engine = None
@@ -507,14 +508,35 @@ class UIMainWindow:
             cut_line_color=QtGui.QColor(255, 0, 0),
             vtk_engine=vtk_engine,
             translation_menu=self.fusion_options_tab)
+
+        self.image_fusion_view_axial.orientation = "axial"
+
         self.image_fusion_view_sagittal = ImageFusionSagittalView(
             cut_line_color=QtGui.QColor(0, 255, 0),
             vtk_engine=vtk_engine,
             translation_menu=self.fusion_options_tab)
+
+        self.image_fusion_view_sagittal.orientation = "sagittal"
+
         self.image_fusion_view_coronal = ImageFusionCoronalView(
             cut_line_color=QtGui.QColor(0, 0, 255),
             vtk_engine=vtk_engine,
             translation_menu=self.fusion_options_tab)
+
+        self.image_fusion_view_coronal.orientation = "coronal"
+
+        fusion_views = [
+            self.image_fusion_view_axial,
+            self.image_fusion_view_sagittal,
+            self.image_fusion_view_coronal
+        ]
+
+        # --- Create Windowing Slider ---
+        # Pass a single view with a .slider attribute
+        self.windowing_slider = WindowingSlider(dicom_view=self.image_fusion_view_axial, width=50)
+        set_windowing_slider(self.windowing_slider, fusion_views=fusion_views)
+
+
         self.image_fusion_roi_transfer_option_view = ROITransferOptionView(
             self.structures_tab.fixed_container_structure_modified,
             self.structures_tab.moving_container_structure_modified)

@@ -1,6 +1,8 @@
 import contextlib
 import logging
 from PySide6 import QtWidgets, QtGui
+
+from src.Model.PatientDictContainer import PatientDictContainer
 from src.View.mainpage.DicomView import DicomView, GraphicsScene
 from src.View.ImageFusion.TranslateRotateMenu import TranslateRotateMenu
 from src.Model.VTKEngine import VTKEngine
@@ -261,4 +263,30 @@ class BaseFusionView(DicomView):
             self.vtk_engine.set_rotation_deg(rx, ry, rz, orientation=orientation, slice_idx=slice_idx)
         self.refresh_overlay()
 
+    def update_color_overlay(self):
+        """
+             Called when window/level changes; refreshes the displayed fusion colors.
+             """
+        print("update_color_overlay called")
 
+        if self.vtk_engine is None:
+            print("No VTKEngine available!")
+            return
+
+        # Update window/level in VTK engine
+        pd = PatientDictContainer()
+        window = pd.get("window") or 1600
+        level = pd.get("level") or 0
+        print(f"Setting VTKEngine window={window}, level={level}")
+        self.vtk_engine.set_window_level(window, level)
+
+        # Optionally update overlay images (for fallback/caching)
+        self.overlay_images = pd.get(f"color_{self.slice_view}")
+        if self.overlay_images:
+            print(f"Overlay images loaded: {len(self.overlay_images)} slices")
+        else:
+            print("No overlay images found!")
+
+        # Redraw the current slice
+        print("Redrawing image_display() for updated window/level")
+        self.image_display()

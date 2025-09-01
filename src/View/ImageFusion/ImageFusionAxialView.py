@@ -1,5 +1,6 @@
 from PySide6 import QtWidgets, QtCore
 
+from src.Model.PatientDictContainer import PatientDictContainer
 from src.View.mainpage.DicomView import DicomView, GraphicsScene
 
 
@@ -16,6 +17,7 @@ class ImageFusionAxialView(BaseFusionView):
         metadata_formatted: whether the metadata needs to be formatted 
         (only metadata in the four view need to be formatted)
         """
+        self.orientation = None
         self.slice_view = 'axial'
         self.metadata_formatted = metadata_formatted
         super().__init__('axial', roi_color, iso_color, cut_line_color, vtk_engine=vtk_engine, translation_menu=translation_menu)
@@ -231,3 +233,44 @@ class ImageFusionAxialView(BaseFusionView):
             polygons = self.patient_dict_container.get("dict_polygons_axial")[
                 roi_name][curr_slice]
             super().draw_roi_polygons(roi, polygons)
+
+    def update_color_overlay(self):
+        """
+         Called when window/level changes; refreshes the displayed fusion colors.
+         """
+
+        print("update_color_overlay called")
+
+        if self.vtk_engine is None:
+            print("No VTKEngine available!")
+            return
+
+        # Update overlay images (optional for fallback / caching)
+        pd = PatientDictContainer()
+        self.overlay_images = pd.get(f"color_{self.slice_view}")
+        if self.overlay_images:
+            print(f"Overlay images loaded: {len(self.overlay_images)} slices")
+        else:
+            print("No overlay images found!")
+
+        slice_idx = self.slider.value()
+        print(f"Current slice index: {slice_idx}")
+
+        if not self.overlay_images or not (0 <= slice_idx < len(self.overlay_images)):
+            print("Slice index out of range for overlay images")
+            return
+
+        print(f"Updating VTKEngine slice colors for orientation {self.slice_view}")
+        # Push new color data to the VTKEngine
+        try:
+            self.vtk_engine.set_slice_colors(
+                orientation=self.slice_view,
+                slice_idx=slice_idx,
+                color_data=self.overlay_images[slice_idx]
+            )
+            print("VTKEngine slice colors updated successfully")
+        except Exception as e:
+            print("Error updating VTKEngine slice colors:", e)
+
+        print("Refreshing overlay")
+        self.refresh_overlay()

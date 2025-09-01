@@ -22,11 +22,13 @@ def windowing_model(text, init):
     # Set window and level to the new values
     window = windowing_limits[0]
     level = windowing_limits[1]
+    init = [True, False, False, False]
+    init[3] = True  # force fusion update
 
     windowing_model_direct(level, window, init)
 
 
-def windowing_model_direct(level, window, init):
+def windowing_model_direct(level, window, init, fixed_image_array=None):
     """
     Function triggered when a window is selected from the menu,
     or when the windowing slider bars are adjusted
@@ -80,20 +82,44 @@ def windowing_model_direct(level, window, init):
         pt_ct_dict_container.set("pt_window", window)
         pt_ct_dict_container.set("pt_level", level)
 
-    # Update Fusion
-    if init[3]:
-        fusion_axial, fusion_coronal, fusion_sagittal, tfm = \
-            get_fused_window(level, window)
-        patient_dict_container.set("color_axial", fusion_axial)
-        patient_dict_container.set("color_coronal", fusion_coronal)
-        patient_dict_container.set("color_sagittal", fusion_sagittal)
-        moving_dict_container.set("tfm", tfm)
+        if init[3]:
+            patient_dict_container = PatientDictContainer()
+            manual_fusion_data = patient_dict_container.get("manual_fusion")
+
+            if manual_fusion_data is None:
+                print("No manual fusion loaded! Skipping fusion update.")
+            else:
+                fixed_image, overlay_image, *_ = manual_fusion_data
+
+                # Use the provided fixed_image_array if available
+                pixmap_aspect = patient_dict_container.get("pixmap_aspect")
+                fusion_axial, fusion_coronal, fusion_sagittal = get_pixmaps(
+                    fixed_image_array if fixed_image_array is not None else fixed_image,
+                    window, level, pixmap_aspect
+                )
+
+            patient_dict_container.set("color_axial", fusion_axial)
+            patient_dict_container.set("color_coronal", fusion_coronal)
+            patient_dict_container.set("color_sagittal", fusion_sagittal)
+
+            # Reset transform if needed
+            moving_dict_container = MovingDictContainer()
+            moving_dict_container.set("tfm", None)
+
+            # Refresh views safely
+            if windowing_slider and hasattr(windowing_slider, "fusion_views"):
+                for view in windowing_slider.fusion_views:
+                    if hasattr(view, "update_color_overlay"):
+                        view.update_color_overlay()
 
     # Update Slider
     if windowing_slider is not None:
         windowing_slider.set_bars_from_window(window, level)
 
 
-def set_windowing_slider(slider):
+def set_windowing_slider(slider, fusion_views = None):
     global windowing_slider
     windowing_slider = slider
+
+    if fusion_views is not None:
+        windowing_slider.fusion_views = fusion_views
