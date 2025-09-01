@@ -24,9 +24,8 @@ def windowing_model(text, init):
     # Set window and level to the new values
     window = windowing_limits[0]
     level = windowing_limits[1]
-    init = [True, False, False, False]
-    init[3] = True  # force fusion update
 
+    # Use the init argument as passed in (do not overwrite)
     windowing_model_direct(level, window, init)
 
 
