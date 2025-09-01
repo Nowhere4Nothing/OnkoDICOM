@@ -101,9 +101,6 @@ class ManualFusionLoader(QtCore.QObject):
             np_img = numpy_support.vtk_to_numpy(scalars).reshape(dims[::-1])
             fixed_image_array = np_img
         elif hasattr(fixed_image, "GetArrayFromImage"):  # SimpleITK image
-            import SimpleITK as sitk
-            fixed_image_array = sitk.GetArrayFromImage(fixed_image)
-        else:
             fixed_image_array = fixed_image  # assume already numpy
 
             # Trigger a refresh of fusion views (forces fusion update)

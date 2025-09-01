@@ -1,3 +1,5 @@
+import numpy as np
+
 from src.Model.PatientDictContainer import PatientDictContainer
 from src.Model.PTCTDictContainer import PTCTDictContainer
 from src.Model.MovingDictContainer import MovingDictContainer
@@ -45,8 +47,23 @@ def windowing_model_direct(level, window, init, fixed_image_array=None):
     if init[0]:
         pixel_values = patient_dict_container.get("pixel_values")
         pixmap_aspect = patient_dict_container.get("pixmap_aspect")
-        pixmaps_axial, pixmaps_coronal, pixmaps_sagittal = \
-            get_pixmaps(pixel_values, window, level, pixmap_aspect)
+        if pixel_values is None or not hasattr(pixel_values, "__len__") or len(pixel_values) == 0:
+            print("[windowing_model_direct] pixel_values is empty or invalid, skipping get_pixmaps")
+            pixmaps_axial = pixmaps_coronal = pixmaps_sagittal = {}
+        else:
+            # Print shape/type for debugging
+            try:
+                arr = np.array(pixel_values)
+                print(f"[windowing_model_direct] pixel_values shape: {arr.shape}, type: {type(pixel_values)}")
+                if arr.ndim != 3:
+                    print("[windowing_model_direct] pixel_values is not 3D, skipping get_pixmaps")
+                    pixmaps_axial = pixmaps_coronal = pixmaps_sagittal = {}
+                else:
+                    pixmaps_axial, pixmaps_coronal, pixmaps_sagittal = \
+                        get_pixmaps(pixel_values, window, level, pixmap_aspect)
+            except Exception as e:
+                print(f"[windowing_model_direct] Exception converting pixel_values to array: {e}")
+                pixmaps_axial = pixmaps_coronal = pixmaps_sagittal = {}
 
         patient_dict_container.set("pixmaps_axial", pixmaps_axial)
         patient_dict_container.set("pixmaps_coronal", pixmaps_coronal)
@@ -82,35 +99,42 @@ def windowing_model_direct(level, window, init, fixed_image_array=None):
         pt_ct_dict_container.set("pt_window", window)
         pt_ct_dict_container.set("pt_level", level)
 
-        if init[3]:
-            patient_dict_container = PatientDictContainer()
-            manual_fusion_data = patient_dict_container.get("manual_fusion")
+    if init[3]:
+        patient_dict_container = PatientDictContainer()
+        manual_fusion_data = patient_dict_container.get("manual_fusion")
 
-            if manual_fusion_data is None:
-                print("No manual fusion loaded! Skipping fusion update.")
+        if manual_fusion_data is None:
+            print("No manual fusion loaded! Skipping fusion update.")
+            fusion_axial = fusion_coronal = fusion_sagittal = {}
+        else:
+            fixed_image, overlay_image, *_ = manual_fusion_data
+
+            # Use the provided fixed_image_array if available
+            pixmap_aspect = patient_dict_container.get("pixmap_aspect")
+            arr = np.array(fixed_image_array if fixed_image_array is not None else fixed_image)
+            print(f"[windowing_model_direct] fusion fixed_image shape: {arr.shape}, type: {type(arr)}")
+            if arr.ndim != 3:
+                print("[windowing_model_direct] fusion fixed_image is not 3D, skipping get_pixmaps")
+                fusion_axial = fusion_coronal = fusion_sagittal = {}
             else:
-                fixed_image, overlay_image, *_ = manual_fusion_data
-
-                # Use the provided fixed_image_array if available
-                pixmap_aspect = patient_dict_container.get("pixmap_aspect")
                 fusion_axial, fusion_coronal, fusion_sagittal = get_pixmaps(
-                    fixed_image_array if fixed_image_array is not None else fixed_image,
-                    window, level, pixmap_aspect
+                    arr, window, level, pixmap_aspect
                 )
 
-            patient_dict_container.set("color_axial", fusion_axial)
-            patient_dict_container.set("color_coronal", fusion_coronal)
-            patient_dict_container.set("color_sagittal", fusion_sagittal)
+        patient_dict_container.set("color_axial", fusion_axial)
+        patient_dict_container.set("color_coronal", fusion_coronal)
+        patient_dict_container.set("color_sagittal", fusion_sagittal)
 
-            # Reset transform if needed
-            moving_dict_container = MovingDictContainer()
+        # Reset transform if needed
+        moving_dict_container = MovingDictContainer()
+        if hasattr(moving_dict_container, "additional_data") and moving_dict_container.additional_data is not None:
             moving_dict_container.set("tfm", None)
 
-            # Refresh views safely
-            if windowing_slider and hasattr(windowing_slider, "fusion_views"):
-                for view in windowing_slider.fusion_views:
-                    if hasattr(view, "update_color_overlay"):
-                        view.update_color_overlay()
+        # Refresh views safely
+        if windowing_slider and hasattr(windowing_slider, "fusion_views"):
+            for view in windowing_slider.fusion_views:
+                if hasattr(view, "update_color_overlay"):
+                    view.update_color_overlay()
 
     # Update Slider
     if windowing_slider is not None:
