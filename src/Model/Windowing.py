@@ -131,10 +131,13 @@ def windowing_model_direct(level, window, init, fixed_image_array=None):
             moving_dict_container.set("tfm", None)
 
         # Refresh views safely
-        if windowing_slider and hasattr(windowing_slider, "fusion_views"):
-            for view in windowing_slider.fusion_views:
-                if hasattr(view, "update_color_overlay"):
-                    view.update_color_overlay()
+        try:
+            if windowing_slider and hasattr(windowing_slider, "fusion_views") and windowing_slider.fusion_views:
+                for view in windowing_slider.fusion_views:
+                    if hasattr(view, "update_color_overlay"):
+                        view.update_color_overlay()
+        except Exception as e:
+            print(f"[windowing_model_direct] Skipping fusion view update: {e}")
 
     # Update Slider
     if windowing_slider is not None:
