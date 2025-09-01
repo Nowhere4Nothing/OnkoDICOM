@@ -66,7 +66,12 @@ class Windowing(QDialog):
         if not self.pt_ct_dict_container.is_empty():
             self.layout.addWidget(self.pet)
             self.layout.addWidget(self.ct)
-        if not self.moving_dict_container.is_empty():
+        # Show fusion checkbox if either MovingDictContainer is not empty
+        # OR if manual fusion is loaded in PatientDictContainer
+        from src.Model.PatientDictContainer import PatientDictContainer
+        pd_container = PatientDictContainer()
+        manual_fusion_loaded = pd_container.get("manual_fusion") is not None
+        if not self.moving_dict_container.is_empty() or manual_fusion_loaded:
             self.layout.addWidget(self.fusion)
         self.layout.addLayout(self.buttons)
 
