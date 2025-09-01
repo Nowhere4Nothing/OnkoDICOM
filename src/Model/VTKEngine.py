@@ -106,6 +106,7 @@ class VTKEngine:
         """
         Returns (fixed_slice, moving_slice) as numpy arrays (uint8 2D), both aligned
         to the fixed volume’s geometry. Each can be None if missing.
+        Uses self.window and self.level if set, otherwise defaults.
         """
         if self.fixed_reader is None:
             return None, None
@@ -116,6 +117,10 @@ class VTKEngine:
         # Update reslice if moving present
         if self.moving_reader:
             self.reslice3d.Update()
+
+        # Use instance window/level if set, else defaults
+        window_center = getattr(self, "level", 40)
+        window_width = getattr(self, "window", 400)
 
         def vtk_to_np_slice(img, orientation, slice_idx, window_center=40, window_width=400):
             if img is None or img.GetPointData() is None:
@@ -149,8 +154,10 @@ class VTKEngine:
             arr2d = (arr2d * 255.0).astype(np.uint8)
             return np.ascontiguousarray(arr2d)
 
-        fixed_slice = vtk_to_np_slice(fixed_img, orientation, slice_idx, window_center=40, window_width=400)
-        moving_slice = vtk_to_np_slice(moving_img, orientation, slice_idx, window_center=40, window_width=400) if moving_img else None
+        fixed_slice = vtk_to_np_slice(fixed_img, orientation, slice_idx, window_center=window_center,
+                                      window_width=window_width)
+        moving_slice = vtk_to_np_slice(moving_img, orientation, slice_idx, window_center=window_center,
+                                       window_width=window_width) if moving_img else None
         return fixed_slice, moving_slice
 
     # ---------------- REFACTORED OLD FUNCTION ----------------
@@ -302,3 +309,11 @@ class VTKEngine:
             self.reslice3d.SetInterpolationModeToLinear()
         else:
             self.reslice3d.SetInterpolationModeToNearestNeighbor()
+
+    def set_window_level(self, window: float, level: float):
+        """
+        Set the window and level for the VTK rendering pipeline.
+        This does not automatically trigger a redraw; the next call to get_slice_qimage will use these values.
+        """
+        self.window = window
+        self.level = level
