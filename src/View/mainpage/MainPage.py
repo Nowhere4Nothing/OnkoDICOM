@@ -480,6 +480,15 @@ class UIMainWindow:
                         text = "Purple + Green"
                     view._on_color_pair_changed(text)
 
+        def propagate_window_level_change(window, level):
+            for view in [
+                self.image_fusion_view_axial,
+                self.image_fusion_view_sagittal,
+                self.image_fusion_view_coronal,
+            ]:
+                if hasattr(view, "on_window_level_changed"):
+                    view.on_window_level_changed(window, level)
+
         # Fusion Options Tab with Translate/Rotate Menu
         self.fusion_options_tab = None
 
@@ -535,6 +544,8 @@ class UIMainWindow:
         # Pass a single view with a .slider attribute
         self.windowing_slider = WindowingSlider(dicom_view=self.image_fusion_view_axial, width=50)
         set_windowing_slider(self.windowing_slider, fusion_views=fusion_views)
+        # Attach the window/level callback
+        self.windowing_slider.fusion_window_level_callback = propagate_window_level_change
 
 
         self.image_fusion_roi_transfer_option_view = ROITransferOptionView(

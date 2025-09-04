@@ -18,6 +18,10 @@ class VTKEngine:
         self.moving_reader = None
         self._blend_dirty = True
 
+        # Always initialize window/level to defaults
+        self.window = 400
+        self.level = 40
+
         # Transform parameters
         self._tx = self._ty = self._tz = 0.0
         self._rx = self._ry = self._rz = 0.0
@@ -122,6 +126,11 @@ class VTKEngine:
         window_center = getattr(self, "level", 40)
         window_width = getattr(self, "window", 400)
 
+        # If window/level is set to "auto" (e.g., -1), use per-slice min/max
+        if window_center == -1 and window_width == -1:
+            # We'll set these per-slice below
+            pass
+
         def vtk_to_np_slice(img, orientation, slice_idx, window_center=40, window_width=400):
             if img is None or img.GetPointData() is None:
                 return None
@@ -146,10 +155,20 @@ class VTKEngine:
             else:
                 return None
 
+            print(f"[get_slice_numpy] orientation={orientation}, slice_idx={slice_idx}, raw arr2d min={arr2d.min()}, max={arr2d.max()}")
+
             # --- Apply CT windowing ---
             arr2d = arr2d.astype(np.float32)
             c = window_center
             w = window_width
+
+            # If "auto" mode, use per-slice min/max
+            if c == -1 and w == -1:
+                c = (arr2d.max() + arr2d.min()) / 2
+                w = arr2d.max() - arr2d.min()
+                print(f"[get_slice_numpy] AUTO windowing: per-slice window={w}, level={c}")
+
+
             arr2d = np.clip((arr2d - (c - 0.5)) / (w - 1) + 0.5, 0, 1)
             arr2d = (arr2d * 255.0).astype(np.uint8)
             return np.ascontiguousarray(arr2d)
@@ -169,6 +188,9 @@ class VTKEngine:
         h, w = fixed_slice.shape
 
         blend = self.blend.GetOpacity(1) if self.moving_reader is not None else 0.0
+
+        print(
+            f"[get_slice_qimage] fixed_slice raw min={fixed_slice.min()}, max={fixed_slice.max()}, window={self.window}, level={self.level}")
 
         color_map = {
             "Grayscale":   lambda arr: arr,

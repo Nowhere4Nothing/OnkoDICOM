@@ -267,27 +267,21 @@ class WindowingSlider(QWidget):
         index = max(index, 0)
         index = min(index, self.slider_density - 1)
 
-        print(f"[update_bar] Called with index={index}, top_bar={top_bar}")  # debug
-
 
         if top_bar:
 
             with suppress(RuntimeError):
-                print(f"[update_bar] Resetting previous top bar at {self.top}")
 
                 self.slider_bars[self.top].setColor("white")
             self.top = index
 
             with suppress(RuntimeError):
                 self.slider_bars[index].setColor("red")
-                print(f"[update_bar] Setting new top bar at {index}")
 
         else:
             # Ensure the bottom bar is actually rendered
             # Functionally the bar will still be correct
             with suppress(RuntimeError):
-                print(
-                    f"[update_bar] Resetting previous bottom bar at {max(self.bottom, WindowingSlider.MIN_BOTTOM_INDEX)}")
 
                 self.slider_bars[
                     max(self.bottom, WindowingSlider.MIN_BOTTOM_INDEX)
@@ -296,7 +290,6 @@ class WindowingSlider(QWidget):
             self.bottom = index
 
             with suppress(RuntimeError):
-                print(f"[update_bar] Setting new bottom bar at {max(index, WindowingSlider.MIN_BOTTOM_INDEX)}")
 
                 self.slider_bars[max(index, WindowingSlider.MIN_BOTTOM_INDEX)].setColor(
                 "red"

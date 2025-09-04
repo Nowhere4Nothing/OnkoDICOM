@@ -91,7 +91,7 @@ class BaseFusionView(DicomView):
         if self.vtk_engine is not None:
             self._display_vtk_image(slider_id)
             return
-        
+
         # Legacy (non-vtk) logic below
         # Base image (fixed)
         pixmaps = self.patient_dict_container.get(f"color_{self.slice_view}")
@@ -106,14 +106,18 @@ class BaseFusionView(DicomView):
         else:
             self.base_item.setPixmap(image)
 
-        # Overlay image (moving)
-        overlay_pixmap = None
-        if self.overlay_images is not None and 0 <= slider_id < len(self.overlay_images):
-            overlay_pixmap = self.overlay_images[slider_id]
+            # Overlay image (moving)
+            overlay_pixmap = None
+            if self.overlay_images is not None and 0 <= slider_id < len(self.overlay_images):
+                overlay_pixmap = self.overlay_images[slider_id]
 
-        # Update or create the overlay item
-        if overlay_pixmap is not None:
-            if self.overlay_item is None:
+            # Update or create the overlay item
+            if overlay_pixmap is None:
+                # Remove overlay item if present
+                if self.overlay_item is not None:
+                    self.scene.removeItem(self.overlay_item)
+                    self.overlay_item = None
+            elif self.overlay_item is None:
                 self.overlay_item = QtWidgets.QGraphicsPixmapItem(overlay_pixmap)
                 self.overlay_item.setZValue(1)  # Ensure overlay is below cut lines
                 offset = getattr(self, "overlay_offset", (0, 0))
@@ -123,11 +127,15 @@ class BaseFusionView(DicomView):
                 self.overlay_item.setPixmap(overlay_pixmap)
                 offset = getattr(self, "overlay_offset", (0, 0))
                 self.overlay_item.setPos(offset[0], offset[1])
-        else:
-            self.overlay_item = None
+            # Always ensure the base image item is present
+            if self.base_item is not None and self.base_item.scene() is None:
+                self.scene.addItem(self.base_item)
         
     def _display_vtk_image(self, slider_id):
+
         orientation = self.slice_view
+        print(f"[BaseFusionView._display_vtk_image] orientation={orientation}, slider_id={slider_id}, fixed_color={self.fixed_color}, moving_color={self.moving_color}, coloring_enabled={self.coloring_enabled}")
+
         # Use selected color and coloring state
         qimg = self.vtk_engine.get_slice_qimage(
             orientation, slider_id,
@@ -137,6 +145,7 @@ class BaseFusionView(DicomView):
         )
         if qimg.isNull():
             logging.error(f"Null QImage returned from VTKEngine for orientation '{orientation}', slice {slider_id}")
+            print("[BaseFusionView._display_vtk_image] QImage is NULL, using placeholder.")
             # Create a placeholder image (gray with "No Image" text)
             qimg = QtGui.QImage(256, 256, QtGui.QImage.Format_RGB32)
             qimg.fill(QtGui.QColor('gray'))
@@ -147,17 +156,45 @@ class BaseFusionView(DicomView):
             painter.setFont(font)
             painter.drawText(qimg.rect(), QtCore.Qt.AlignCenter, "No Image")
             painter.end()
+        else:
+            print(f"[BaseFusionView._display_vtk_image] QImage is valid, size={qimg.size()}")
+
         pixmap = QtGui.QPixmap.fromImage(qimg)
+
         # Display as the base image (no overlay needed, since VTKEngine blends)
         if self.base_item is None:
             self.base_item = QtWidgets.QGraphicsPixmapItem(pixmap)
             self.scene.addItem(self.base_item)
         else:
             self.base_item.setPixmap(pixmap)
+
         # Remove overlay item if present
         if self.overlay_item is not None:
             self.scene.removeItem(self.overlay_item)
             self.overlay_item = None
+
+        # Always ensure the base image is present and at the bottom
+        if self.base_item is not None:
+            self.base_item.setZValue(-100)
+            if self.base_item.scene() is None:
+                self.scene.addItem(self.base_item)
+            else:
+                print("[BaseFusionView._display_vtk_image] base_item is present in scene.")
+
+        # Print all items in the scene and their Z-values
+        items = self.scene.items()
+        for item in items:
+            print(f"  - Item: {item}, ZValue: {item.zValue()}")
+
+        # Ensure the scene rect matches the image
+        self.scene.setSceneRect(pixmap.rect())
+        # Fit the image in the view
+        if hasattr(self, "fitInView"):
+            self.fitInView(self.scene.sceneRect(), QtCore.Qt.KeepAspectRatio)
+        # Force a redraw)
+        self.scene.update()
+        if hasattr(self, "viewport"):
+            self.viewport().update()
 
     def roi_display(self):
         """
@@ -265,28 +302,34 @@ class BaseFusionView(DicomView):
 
     def update_color_overlay(self):
         """
-             Called when window/level changes; refreshes the displayed fusion colors.
-             """
-        print("update_color_overlay called")
+                  Called when window/level changes; refreshes the displayed fusion colors.
+              """
 
-        if self.vtk_engine is None:
-            print("No VTKEngine available!")
-            return
-
-        # Update window/level in VTK engine
-        pd = PatientDictContainer()
-        window = pd.get("window") or 1600
-        level = pd.get("level") or 0
-        print(f"Setting VTKEngine window={window}, level={level}")
-        self.vtk_engine.set_window_level(window, level)
-
-        # Optionally update overlay images (for fallback/caching)
-        self.overlay_images = pd.get(f"color_{self.slice_view}")
-        if self.overlay_images:
-            print(f"Overlay images loaded: {len(self.overlay_images)} slices")
+        if self.vtk_engine is not None:
+            print("[update_color_overlay] Using VTK pipeline, clearing overlay_images.")
+            self.overlay_images = None  # Always clear overlays for VTK/manual fusion
+            self._extracted_from_update_color_overlay_8()
         else:
-            print("No overlay images found!")
+            # Only update overlays if not using VTK/manual fusion
+            pd = PatientDictContainer()
+            self.overlay_images = pd.get(f"color_{self.slice_view}")
+            if self.overlay_images:
+                print(f"Overlay images loaded: {len(self.overlay_images)} slices")
+            else:
+                print("No overlay images found!")
 
-        # Redraw the current slice
-        print("Redrawing image_display() for updated window/level")
         self.image_display()
+        # Force a full view update to redraw ROI/cut lines
+        self.update_view()
+
+    # TODO Rename this here and in `update_color_overlay`
+    def _extracted_from_update_color_overlay_8(self):
+        pd = PatientDictContainer()
+        window = pd.get("fusion_window")
+        level = pd.get("fusion_level")
+        if window is None:
+            window = getattr(self.vtk_engine, "window", 400)
+        if level is None:
+            level = getattr(self.vtk_engine, "level", 40)
+        # print(f"Setting VTKEngine window={window}, level={level}")
+        self.vtk_engine.set_window_level(float(window), float(level))

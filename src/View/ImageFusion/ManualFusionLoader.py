@@ -102,10 +102,22 @@ class ManualFusionLoader(QtCore.QObject):
             fixed_image_array = np_img
         elif hasattr(fixed_image, "GetArrayFromImage"):  # SimpleITK image
             fixed_image_array = fixed_image  # assume already numpy
+        else:
+            fixed_image_array = None
 
-            # Trigger a refresh of fusion views (forces fusion update)
-            from src.Model.Windowing import windowing_model_direct
-            window = patient_dict_container.get("window") or 1600
-            level = patient_dict_container.get("level") or 0
-            # Pass the fixed_image_array to windowing_model_direct for correct pixmap generation
-            windowing_model_direct(level=level, window=window, init=[False, False, False, True], fixed_image_array=fixed_image_array)
+            # Always trigger a refresh of fusion views (forces fusion update)
+        from src.Model.Windowing import windowing_model_direct
+        window = patient_dict_container.get("fusion_window")
+        level = patient_dict_container.get("fusion_level")
+
+        # If not set, use sensible defaults based on the fixed image array
+        if window is None or level is None:
+            if fixed_image_array is not None:
+                window = int(fixed_image_array.max() - fixed_image_array.min())
+                level = int((fixed_image_array.max() + fixed_image_array.min()) / 2)
+            else:
+                window = 400
+                level = 40
+
+        windowing_model_direct(level=level, window=window, init=[False, False, False, True],
+                               fixed_image_array=fixed_image_array)

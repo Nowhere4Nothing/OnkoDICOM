@@ -199,8 +199,8 @@ class ImageFusionAxialView(BaseFusionView):
         total_slices = len(self.patient_dict_container.get("pixmaps_axial"))
         row_img = dataset['Rows'].value
         col_img = dataset['Columns'].value
-        window = self.patient_dict_container.get("window")
-        level = self.patient_dict_container.get("level")
+        window = self.patient_dict_container.get("fusion_window")
+        level = self.patient_dict_container.get("fusion_level")
         slice_pos = dataset['SliceLocation'].value
 
         if hasattr(dataset, 'PatientPosition'):
@@ -234,43 +234,48 @@ class ImageFusionAxialView(BaseFusionView):
                 roi_name][curr_slice]
             super().draw_roi_polygons(roi, polygons)
 
+    def on_window_level_changed(self, window, level):
+        """
+        Callback to update window/level for this fusion view.
+        """
+        pd = PatientDictContainer()
+        pd.set("fusion_window", window)
+        pd.set("fusion_level", level)
+        self.vtk_engine.set_window_level(float(window), float(level))
+        self.update_color_overlay()
+
+
     def update_color_overlay(self):
         """
-         Called when window/level changes; refreshes the displayed fusion colors.
-         """
+                  Called when window/level changes; refreshes the displayed fusion colors.
+              """
 
-        print("update_color_overlay called")
-
-        if self.vtk_engine is None:
-            print("No VTKEngine available!")
-            return
-
-        # Update overlay images (optional for fallback / caching)
-        pd = PatientDictContainer()
-        self.overlay_images = pd.get(f"color_{self.slice_view}")
-        if self.overlay_images:
-            print(f"Overlay images loaded: {len(self.overlay_images)} slices")
+        if self.vtk_engine is not None:
+            self.overlay_images = None  # Always clear overlays for VTK/manual fusion
+            self._extracted_from_update_color_overlay_8()
         else:
-            print("No overlay images found!")
+            # Only update overlays if not using VTK/manual fusion
+            pd = PatientDictContainer()
+            self.overlay_images = pd.get(f"color_{self.slice_view}")
+            if self.overlay_images:
+                print(f"Overlay images loaded: {len(self.overlay_images)} slices")
+            else:
+                print("No overlay images found!")
 
-        slice_idx = self.slider.value()
-        print(f"Current slice index: {slice_idx}")
 
-        if not self.overlay_images or not (0 <= slice_idx < len(self.overlay_images)):
-            print("Slice index out of range for overlay images")
-            return
+        self.image_display()
+        # Force a full view update to redraw ROI/cut lines
 
-        print(f"Updating VTKEngine slice colors for orientation {self.slice_view}")
-        # Push new color data to the VTKEngine
-        try:
-            self.vtk_engine.set_slice_colors(
-                orientation=self.slice_view,
-                slice_idx=slice_idx,
-                color_data=self.overlay_images[slice_idx]
-            )
-            print("VTKEngine slice colors updated successfully")
-        except Exception as e:
-            print("Error updating VTKEngine slice colors:", e)
+        self.update_view()
 
-        print("Refreshing overlay")
-        self.refresh_overlay()
+    # TODO Rename this here and in `update_color_overlay`
+    def _extracted_from_update_color_overlay_8(self):
+        pd = PatientDictContainer()
+        window = pd.get("fusion_window")
+        level = pd.get("fusion_level")
+        if window is None:
+            window = getattr(self.vtk_engine, "window", 400)
+        if level is None:
+            level = getattr(self.vtk_engine, "level", 40)
+        # print(f"Setting VTKEngine window={window}, level={level}")
+        self.vtk_engine.set_window_level(float(window), float(level))

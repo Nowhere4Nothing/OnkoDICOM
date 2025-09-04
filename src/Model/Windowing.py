@@ -1,4 +1,5 @@
 import numpy as np
+from PySide6 import QtGui
 
 from src.Model.PatientDictContainer import PatientDictContainer
 from src.Model.PTCTDictContainer import PTCTDictContainer
@@ -19,17 +20,26 @@ def windowing_model(text, init):
     patient_dict_container = PatientDictContainer()
 
     # Get the values for window and level from the dict
-    windowing_limits = patient_dict_container.get("dict_windowing")[text]
-
-    # Set window and level to the new values
-    window = windowing_limits[0]
-    level = windowing_limits[1]
+    if text == "Auto":
+        arr = np.array(patient_dict_container.get("pixel_values"))
+        window = int(arr.max() - arr.min())
+        level = int((arr.max() + arr.min()) / 2)
+    else:
+        windowing_limits = patient_dict_container.get("dict_windowing")[text]
+        # If your data is 0–255, override the presets:
+        arr = np.array(patient_dict_container.get("pixel_values"))
+        if arr.min() >= 0 and arr.max() <= 255:
+            window = int(arr.max() - arr.min())
+            level = int((arr.max() + arr.min()) / 2)
+        else:
+            window = windowing_limits[0]
+            level = windowing_limits[1]
 
     # Use the init argument as passed in (do not overwrite)
-    windowing_model_direct(level, window, init)
+    windowing_model_direct(window, level, init)
 
 
-def windowing_model_direct(level, window, init, fixed_image_array=None):
+def windowing_model_direct(window, level, init, fixed_image_array=None):
     """
     Function triggered when a window is selected from the menu,
     or when the windowing slider bars are adjusted
@@ -37,6 +47,16 @@ def windowing_model_direct(level, window, init, fixed_image_array=None):
     :param window: The desired window
     :param init: list of bool to determine which views are chosen
     """
+    print(f"[windowing_model_direct] Called with window={window}, level={level}, init={init}")
+    if fixed_image_array is not None:
+        arr = np.array(fixed_image_array)
+        print(
+            f"[windowing_model_direct] manual fusion fixed_image_array min={arr.min()}, max={arr.max()}, shape={arr.shape}")
+    else:
+        patient_dict_container = PatientDictContainer()
+        arr = np.array(patient_dict_container.get("pixel_values"))
+        print(f"[windowing_model_direct] DICOM pixel_values min={arr.min()}, max={arr.max()}, shape={arr.shape}")
+
     patient_dict_container = PatientDictContainer()
     moving_dict_container = MovingDictContainer()
     pt_ct_dict_container = PTCTDictContainer()
@@ -67,6 +87,8 @@ def windowing_model_direct(level, window, init, fixed_image_array=None):
         patient_dict_container.set("pixmaps_axial", pixmaps_axial)
         patient_dict_container.set("pixmaps_coronal", pixmaps_coronal)
         patient_dict_container.set("pixmaps_sagittal", pixmaps_sagittal)
+
+        # Store DICOM view window/level
         patient_dict_container.set("window", window)
         patient_dict_container.set("level", level)
 
@@ -99,43 +121,58 @@ def windowing_model_direct(level, window, init, fixed_image_array=None):
         pt_ct_dict_container.set("pt_level", level)
 
     if init[3]:
-        patient_dict_container = PatientDictContainer()
-        manual_fusion_data = patient_dict_container.get("manual_fusion")
-
-        if manual_fusion_data is None:
-            print("No manual fusion loaded! Skipping fusion update.")
-            fusion_axial = fusion_coronal = fusion_sagittal = {}
-        else:
-            fixed_image, overlay_image, *_ = manual_fusion_data
-
-            # Use the provided fixed_image_array if available
-            pixmap_aspect = patient_dict_container.get("pixmap_aspect")
-            arr = np.array(fixed_image_array if fixed_image_array is not None else fixed_image)
-            print(f"[windowing_model_direct] fusion fixed_image shape: {arr.shape}, type: {type(arr)}")
-            if arr.ndim != 3:
-                print("[windowing_model_direct] fusion fixed_image is not 3D, skipping get_pixmaps")
-                fusion_axial = fusion_coronal = fusion_sagittal = {}
-            else:
-                fusion_axial, fusion_coronal, fusion_sagittal = get_pixmaps(
-                    arr, window, level, pixmap_aspect
-                )
-
-        patient_dict_container.set("color_axial", fusion_axial)
-        patient_dict_container.set("color_coronal", fusion_coronal)
-        patient_dict_container.set("color_sagittal", fusion_sagittal)
-
-        # Reset transform if needed
+        # For manual fusion (VTK), generate overlays for all slices using the VTK engine.
+        # This allows all slices to be updated and displayed quickly.
         moving_dict_container = MovingDictContainer()
         if hasattr(moving_dict_container, "additional_data") and moving_dict_container.additional_data is not None:
             moving_dict_container.set("tfm", None)
 
-        try:
-            if windowing_slider and hasattr(windowing_slider, "fusion_views") and windowing_slider.fusion_views:
+        # Store fusion window/level
+        patient_dict_container.set("fusion_window", window)
+        patient_dict_container.set("fusion_level", level)
+
+        # Generate overlays for all slices in each orientation
+        # Generate overlays for all slices in each orientation
+        if windowing_slider and hasattr(windowing_slider, "fusion_views") and windowing_slider.fusion_views:
+            # Use the callback if available
+            if hasattr(windowing_slider, "fusion_window_level_callback"):
+                windowing_slider.fusion_window_level_callback(window, level)
+            else:
                 for view in windowing_slider.fusion_views:
+                    if hasattr(view, "vtk_engine") and view.vtk_engine is not None:
+                        orientation = view.slice_view
+                        vtk_engine = view.vtk_engine
+                        # Get the slice range for this orientation
+                        extent = vtk_engine.fixed_extent()
+                        if not extent:
+                            continue
+                        if orientation == "axial":
+                            min_idx, max_idx = extent[4], extent[5]
+                        elif orientation == "coronal":
+                            min_idx, max_idx = extent[2], extent[3]
+                        elif orientation == "sagittal":
+                            min_idx, max_idx = extent[0], extent[1]
+                        else:
+                            continue
+                        overlays = []
+                        for idx in range(min_idx, max_idx + 1):
+                            qimg = vtk_engine.get_slice_qimage(
+                                orientation, idx,
+                                fixed_color=view.fixed_color,
+                                moving_color=view.moving_color,
+                                coloring_enabled=view.coloring_enabled
+                            )
+                            overlays.append(QtGui.QPixmap.fromImage(qimg))
+                        # Store overlays in PatientDictContainer for this orientation
+                        patient_dict_container.set(f"color_{orientation}", overlays)
+                        # Also update the view's overlay_images
+                        view.overlay_images = overlays
+                        # print(f"[windowing_model_direct] Generated {len(overlays)} overlays for {orientation}")
+                    # Refresh the view
                     if hasattr(view, "update_color_overlay"):
                         view.update_color_overlay()
-        except Exception as e:
-            print(f"[windowing_model_direct] Skipping fusion view update: {e}")
+        else:
+            print("[windowing_model_direct] No fusion_views found for manual fusion overlays.")
 
     # Update Slider
     if windowing_slider is not None:
