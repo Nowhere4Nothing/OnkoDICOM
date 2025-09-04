@@ -161,14 +161,6 @@ class VTKEngine:
             arr2d = arr2d.astype(np.float32)
             c = window_center
             w = window_width
-
-            # If "auto" mode, use per-slice min/max
-            if c == -1 and w == -1:
-                c = (arr2d.max() + arr2d.min()) / 2
-                w = arr2d.max() - arr2d.min()
-                print(f"[get_slice_numpy] AUTO windowing: per-slice window={w}, level={c}")
-
-
             arr2d = np.clip((arr2d - (c - 0.5)) / (w - 1) + 0.5, 0, 1)
             arr2d = (arr2d * 255.0).astype(np.uint8)
             return np.ascontiguousarray(arr2d)

@@ -107,17 +107,27 @@ class ManualFusionLoader(QtCore.QObject):
 
             # Always trigger a refresh of fusion views (forces fusion update)
         from src.Model.Windowing import windowing_model_direct
+
         window = patient_dict_container.get("fusion_window")
         level = patient_dict_container.get("fusion_level")
 
         # If not set, use sensible defaults based on the fixed image array
         if window is None or level is None:
-            if fixed_image_array is not None:
-                window = int(fixed_image_array.max() - fixed_image_array.min())
-                level = int((fixed_image_array.max() + fixed_image_array.min()) / 2)
+            # Instead of using min/max, use a clinical default (e.g. "Normal" or "Soft Tissue")
+            # You can also use the default from dict_windowing
+            dict_windowing = patient_dict_container.get("dict_windowing")
+            if dict_windowing and "Normal" in dict_windowing:
+                window, level = dict_windowing["Normal"]
             else:
                 window = 400
                 level = 40
+            # Set these as the initial fusion window/level
+            patient_dict_container.set("fusion_window", window)
+            patient_dict_container.set("fusion_level", level)
 
-        windowing_model_direct(level=level, window=window, init=[False, False, False, True],
+        print("[debug] fixed_image_array range:",
+              fixed_image_array.min(), fixed_image_array.max())
+
+        print(f"[on_manual_fusion_loaded] Calling windowing_model_direct with window={window}, level={level}")
+        windowing_model_direct(window=window, level=level, init=[False, False, False, True],
                                fixed_image_array=fixed_image_array)

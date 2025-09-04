@@ -373,8 +373,10 @@ class WindowingSlider(QWidget):
         window = 2 * (bottom_bar - level)
         level = level - WindowingSlider.LEVEL_OFFSET
 
+
+
         with wait_cursor():
-            windowing_model_direct(level, window, send)
+            windowing_model_direct(window, level, send)
 
             try:
                 pd = PatientDictContainer()
