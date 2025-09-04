@@ -14,6 +14,7 @@ from PySide6.QtCharts import (
 from PySide6.QtGui import QCursor, QPixmap, QPainter, Qt
 from PySide6 import QtCore
 
+from contextlib import suppress
 from src.Model.PatientDictContainer import PatientDictContainer
 from src.Model.Windowing import windowing_model_direct, set_windowing_slider
 
@@ -58,10 +59,11 @@ class WindowingSlider(QWidget):
         """
 
         super(WindowingSlider, self).__init__()
+        self.fusion_views = None
         self.action_handler = None
         if WindowingSlider.SINGLETON is None:
             WindowingSlider.SINGLETON = self
-            set_windowing_slider(self)
+            set_windowing_slider(self, None)
 
         self.set_dicom_view(dicom_view)
         patient_dict_container = PatientDictContainer()
@@ -265,18 +267,31 @@ class WindowingSlider(QWidget):
         index = max(index, 0)
         index = min(index, self.slider_density - 1)
 
+
         if top_bar:
-            self.slider_bars[self.top].setColor("white")
+
+            with suppress(RuntimeError):
+
+                self.slider_bars[self.top].setColor("white")
             self.top = index
-            self.slider_bars[index].setColor("red")
+
+            with suppress(RuntimeError):
+                self.slider_bars[index].setColor("red")
+
         else:
             # Ensure the bottom bar is actually rendered
             # Functionally the bar will still be correct
-            self.slider_bars[
-                max(self.bottom, WindowingSlider.MIN_BOTTOM_INDEX)
-            ].setColor("white")
+            with suppress(RuntimeError):
+
+                self.slider_bars[
+                    max(self.bottom, WindowingSlider.MIN_BOTTOM_INDEX)
+                    ].setColor("white")
+
             self.bottom = index
-            self.slider_bars[max(index, WindowingSlider.MIN_BOTTOM_INDEX)].setColor(
+
+            with suppress(RuntimeError):
+
+                self.slider_bars[max(index, WindowingSlider.MIN_BOTTOM_INDEX)].setColor(
                 "red"
             )
 
@@ -358,11 +373,29 @@ class WindowingSlider(QWidget):
         window = 2 * (bottom_bar - level)
         level = level - WindowingSlider.LEVEL_OFFSET
 
+
+
         with wait_cursor():
-            windowing_model_direct(level, window, send)
+            windowing_model_direct(window, level, send)
+
+            try:
+                pd = PatientDictContainer()
+                fusion_views = [
+                    self.action_handler.main_window.image_fusion_view_axial,
+                    self.action_handler.main_window.image_fusion_view_coronal,
+                    self.action_handler.main_window.image_fusion_view_sagittal
+                ]
+                for view in fusion_views:
+                    orientation = view.orientation  # 'axial', 'coronal', 'sagittal'
+                    view.overlay_images = pd.get(f"color_{orientation}")
+                    view.image_display()
+            except Exception as e:
+                print("Error updating fusion overlays:", e)
+
             if self.action_handler is not None:
                 self.action_handler.update_views()
             pass
+
 
     def update_bar_position(self, event):
         # move selected bar to the closest valid position
