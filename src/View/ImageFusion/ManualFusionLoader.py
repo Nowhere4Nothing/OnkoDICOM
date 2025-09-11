@@ -125,9 +125,5 @@ class ManualFusionLoader(QtCore.QObject):
             patient_dict_container.set("fusion_window", window)
             patient_dict_container.set("fusion_level", level)
 
-        print("[debug] fixed_image_array range:",
-              fixed_image_array.min(), fixed_image_array.max())
-
-        print(f"[on_manual_fusion_loaded] Calling windowing_model_direct with window={window}, level={level}")
         windowing_model_direct(window=window, level=level, init=[False, False, False, True],
                                fixed_image_array=fixed_image_array)

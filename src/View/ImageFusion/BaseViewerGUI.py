@@ -134,7 +134,6 @@ class BaseFusionView(DicomView):
     def _display_vtk_image(self, slider_id):
 
         orientation = self.slice_view
-        print(f"[BaseFusionView._display_vtk_image] orientation={orientation}, slider_id={slider_id}, fixed_color={self.fixed_color}, moving_color={self.moving_color}, coloring_enabled={self.coloring_enabled}")
 
         # Use selected color and coloring state
         qimg = self.vtk_engine.get_slice_qimage(
@@ -156,8 +155,6 @@ class BaseFusionView(DicomView):
             painter.setFont(font)
             painter.drawText(qimg.rect(), QtCore.Qt.AlignCenter, "No Image")
             painter.end()
-        else:
-            print(f"[BaseFusionView._display_vtk_image] QImage is valid, size={qimg.size()}")
 
         pixmap = QtGui.QPixmap.fromImage(qimg)
 
@@ -178,13 +175,6 @@ class BaseFusionView(DicomView):
             self.base_item.setZValue(-100)
             if self.base_item.scene() is None:
                 self.scene.addItem(self.base_item)
-            else:
-                print("[BaseFusionView._display_vtk_image] base_item is present in scene.")
-
-        # Print all items in the scene and their Z-values
-        items = self.scene.items()
-        for item in items:
-            print(f"  - Item: {item}, ZValue: {item.zValue()}")
 
         # Ensure the scene rect matches the image
         self.scene.setSceneRect(pixmap.rect())
@@ -306,17 +296,12 @@ class BaseFusionView(DicomView):
               """
 
         if self.vtk_engine is not None:
-            print("[update_color_overlay] Using VTK pipeline, clearing overlay_images.")
             self.overlay_images = None  # Always clear overlays for VTK/manual fusion
             self._extracted_from_update_color_overlay_8()
         else:
             # Only update overlays if not using VTK/manual fusion
             pd = PatientDictContainer()
             self.overlay_images = pd.get(f"color_{self.slice_view}")
-            if self.overlay_images:
-                print(f"Overlay images loaded: {len(self.overlay_images)} slices")
-            else:
-                print("No overlay images found!")
 
         self.image_display()
         # Force a full view update to redraw ROI/cut lines
