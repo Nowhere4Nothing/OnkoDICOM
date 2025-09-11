@@ -653,5 +653,6 @@ class TranslateRotateMenu(QtWidgets.QWidget):
         )
         if mw is not None:
             mw.update_views()
+            
 
         QMessageBox.information(self, "Loaded", f"Spatial Registration loaded from {filename}")
