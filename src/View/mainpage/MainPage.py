@@ -479,6 +479,12 @@ class UIMainWindow:
         # Fusion Options Tab with Translate/Rotate Menu
         self.fusion_options_tab = None
 
+        # VTKEngine integration
+        vtk_engine = None
+        # Try to get vtk_engine from loader result (set by TopLevelController)
+        if hasattr(self, "images") and isinstance(self.images, dict) and "vtk_engine" in self.images:
+            vtk_engine = self.images["vtk_engine"]
+
         if manual:
             self.fusion_options_tab = TranslateRotateMenu()
             self.fusion_options_tab.set_offset_changed_callback(update_all_views)
@@ -487,13 +493,6 @@ class UIMainWindow:
             self.fusion_options_tab.set_get_vtk_engine_callback(lambda: vtk_engine)
             self.left_panel.addTab(self.fusion_options_tab, "Fusion Options")
             self.left_panel.setCurrentWidget(self.fusion_options_tab)
-    
-
-        # VTKEngine integration
-        vtk_engine = None
-        # Try to get vtk_engine from loader result (set by TopLevelController)
-        if hasattr(self, "images") and isinstance(self.images, dict) and "vtk_engine" in self.images:
-            vtk_engine = self.images["vtk_engine"]
 
         # Pass the shared TranslateRotateMenu to all fusion views
         self.image_fusion_single_view = ImageFusionAxialView(
