@@ -1,4 +1,7 @@
 import itertools
+import os
+import threading
+
 from PySide6 import QtWidgets, QtCore
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
@@ -104,28 +107,23 @@ class TranslateRotateMenu(QtWidgets.QWidget):
         self.mouse_rotate_btn.setToolTip("Enable mouse rotation mode")
         self.mouse_interrogation_btn.setToolTip(
             "Enable interrogation window mode (focus overlay in a square around mouse)")
-        self.mouse_none_btn.setToolTip("Disable mouse mode (X)")
 
         # Set icons for buttons
         translate_icon = QIcon(resource_path("res/images/btn-icons/translate_arrow_icon.png"))
         rotate_icon = QIcon(resource_path("res/images/btn-icons/rotate_arrow_icon.png"))
         interrogation_icon = QIcon(resource_path("res/images/btn-icons/interrogation_window_icon.png"))
-        none_icon = QIcon(resource_path("res/images/btn-icons/no_movement_or_window.png"))
         self.mouse_translate_btn.setIcon(translate_icon)
         self.mouse_rotate_btn.setIcon(rotate_icon)
         self.mouse_interrogation_btn.setIcon(interrogation_icon)
-        self.mouse_none_btn.setIcon(none_icon)
         self.mouse_translate_btn.setIconSize(QtCore.QSize(24, 24))
         self.mouse_rotate_btn.setIconSize(QtCore.QSize(24, 24))
         self.mouse_interrogation_btn.setIconSize(QtCore.QSize(24, 24))
-        self.mouse_none_btn.setIconSize(QtCore.QSize(24, 24))
 
         # Add stretch, buttons, stretch
         mouse_mode_hbox.addStretch(1)
         mouse_mode_hbox.addWidget(self.mouse_translate_btn)
         mouse_mode_hbox.addWidget(self.mouse_rotate_btn)
         mouse_mode_hbox.addWidget(self.mouse_interrogation_btn)
-        mouse_mode_hbox.addWidget(self.mouse_none_btn)
         mouse_mode_hbox.addStretch(1)
 
         # Insert the button row
@@ -137,7 +135,6 @@ class TranslateRotateMenu(QtWidgets.QWidget):
         self.mouse_mode_group.addButton(self.mouse_translate_btn)
         self.mouse_mode_group.addButton(self.mouse_rotate_btn)
         self.mouse_mode_group.addButton(self.mouse_interrogation_btn)
-        self.mouse_mode_group.addButton(self.mouse_none_btn)
 
         # Track last clicked button for "toggle off"
         self._last_checked_button = None
@@ -159,8 +156,6 @@ class TranslateRotateMenu(QtWidgets.QWidget):
                     self.mouse_mode = "rotate"
                 elif btn == self.mouse_interrogation_btn:
                     self.mouse_mode = "interrogation"
-                elif btn == self.mouse_none_btn:
-                    self.mouse_mode = None
 
             # Call callback if set
             if self.mouse_mode_changed_callback:
@@ -169,7 +164,6 @@ class TranslateRotateMenu(QtWidgets.QWidget):
         self.mouse_translate_btn.clicked.connect(lambda: on_mouse_mode_btn_clicked(self.mouse_translate_btn))
         self.mouse_rotate_btn.clicked.connect(lambda: on_mouse_mode_btn_clicked(self.mouse_rotate_btn))
         self.mouse_interrogation_btn.clicked.connect(lambda: on_mouse_mode_btn_clicked(self.mouse_interrogation_btn))
-        self.mouse_none_btn.clicked.connect(lambda: on_mouse_mode_btn_clicked(self.mouse_none_btn))
 
         # Rotate section
         layout.addSpacing(8)
@@ -257,8 +251,8 @@ class TranslateRotateMenu(QtWidgets.QWidget):
 
     def set_mouse_mode(self, mode):
         """
-        Set the mouse mode programmatically.
-        """
+                Set the mouse mode programmatically.
+                """
         if mode == "translate":
             self.mouse_translate_btn.setChecked(True)
             self.mouse_rotate_btn.setChecked(False)
@@ -274,9 +268,18 @@ class TranslateRotateMenu(QtWidgets.QWidget):
         else:
             self.mouse_translate_btn.setChecked(False)
             self.mouse_rotate_btn.setChecked(False)
+            self.mouse_interrogation_btn.setChecked(False)
         self.mouse_mode = mode
         if self.mouse_mode_changed_callback:
             self.mouse_mode_changed_callback(mode)
+
+    def set_mouse_mode_buttons_enabled(self, enabled: bool):
+        """
+        Enable or disable the mouse mode buttons.
+        """
+        self.mouse_translate_btn.setEnabled(enabled)
+        self.mouse_rotate_btn.setEnabled(enabled)
+        self.mouse_interrogation_btn.setEnabled(enabled)
 
     def on_offset_change(self, axis_index, value):
         """
@@ -482,15 +485,15 @@ class TranslateRotateMenu(QtWidgets.QWidget):
 
     def _create_spatial_registration_dicom(self, matrix, translation, rotation, vtk_engine):
         """
-        Create a DICOM Spatial Registration Object (SRO) dataset with the given transform.
-        Args:
-            matrix: 4x4 numpy array representing the transformation matrix.
-            translation: List of translation values [tx, ty, tz].
-            rotation: List of rotation values [rx, ry, rz].
-            vtk_engine: The VTKEngine instance (for UIDs).
-        Returns:
-            pydicom FileDataset representing the SRO.
-        """
+               Create a DICOM Spatial Registration Object (SRO) dataset with the given transform.
+               Args:
+                   matrix: 4x4 numpy array representing the transformation matrix.
+                   translation: List of translation values [tx, ty, tz].
+                   rotation: List of rotation values [rx, ry, rz].
+                   vtk_engine: The VTKEngine instance (for UIDs).
+               Returns:
+                   pydicom FileDataset representing the SRO.
+               """
         import pydicom
         from pydicom.dataset import FileDataset, Dataset
         from pydicom.uid import generate_uid
@@ -501,6 +504,57 @@ class TranslateRotateMenu(QtWidgets.QWidget):
         fixed_image_uid = getattr(vtk_engine, "fixed_image_uid", "1.2.3.4.5.6.7.8.1.1")
         moving_series_uid = getattr(vtk_engine, "moving_series_uid", "1.2.3.4.5.6.7.8.2")
         moving_image_uid = getattr(vtk_engine, "moving_image_uid", "1.2.3.4.5.6.7.8.2.1")
+
+        # Try to get patient info from the original DICOM file in PatientDictContainer
+        # Use patient_name and patient_id if provided as attributes (from loader/main thread)
+        patient_name = getattr(self, "patient_name", None)
+        patient_id = getattr(self, "patient_id", None)
+
+        if not patient_name or not patient_id:
+            try:
+                from src.Model.PatientDictContainer import PatientDictContainer
+                pdc = PatientDictContainer()
+                filepaths = pdc.filepaths
+                if filepaths and isinstance(filepaths, dict):
+                    if image_keys := [k for k in filepaths.keys() if str(k).isdigit()]:
+                        first_key = sorted(image_keys, key=lambda x: int(x))[0]
+                        first_image_path = filepaths[first_key]
+                        from pydicom import dcmread
+                        ds_fixed = dcmread(first_image_path, stop_before_pixels=True)
+                        patient_name = getattr(ds_fixed, "PatientName", None)
+                        patient_id = getattr(ds_fixed, "PatientID", None)
+                        print(
+                            f"[DEBUG] Found patient info in file: {first_image_path} PatientName={patient_name}, PatientID={patient_id}")
+                    else:
+                        print("[DEBUG] No numeric keys found in filepaths for image slices.")
+                else:
+                    print("[DEBUG] filepaths is not a dict or is empty.")
+            except Exception as e:
+                print(f"[DEBUG] Could not get patient info from PatientDictContainer filepaths: {e}")
+
+        if not patient_name or not patient_id:
+            try:
+                pdc = PatientDictContainer()
+                patient_name = pdc.get("patient_name") or "FUSION"
+                patient_id = pdc.get("patient_id") or "FUSION"
+                print(
+                    f"[DEBUG] Fallback patient info from PatientDictContainer: PatientName={patient_name}, PatientID={patient_id}")
+            except Exception as e:
+                print(f"[DEBUG] Could not get patient info from PatientDictContainer: {e}")
+                patient_name = "FUSION"
+                patient_id = "FUSION"
+                print(f"[DEBUG] Using default patient info: PatientName={patient_name}, PatientID={patient_id}")
+        print(f"[DEBUG] Saving transform DICOM with PatientName={patient_name}, PatientID={patient_id}")
+
+
+        # Print a warning if the patient name is too long for DICOM
+        if patient_name and len(str(patient_name)) > 64:
+            print(
+                f"[WARNING] PatientName length ({len(str(patient_name))}) exceeds DICOM max of 64. It will be truncated.")
+            patient_name = str(patient_name)[:64]
+        if patient_id and len(str(patient_id)) > 64:
+            print(f"[WARNING] PatientID length ({len(str(patient_id))}) exceeds DICOM max of 64. It will be truncated.")
+            patient_id = str(patient_id)[:64]
 
         # Create a minimal DICOM SRO dataset
         file_meta = pydicom.Dataset()
@@ -514,8 +568,8 @@ class TranslateRotateMenu(QtWidgets.QWidget):
 
         # Set required DICOM fields
         dt = datetime.datetime.now()
-        ds.PatientName = "FUSION"
-        ds.PatientID = "FUSION"
+        ds.PatientName = patient_name
+        ds.PatientID = patient_id
         ds.StudyInstanceUID = generate_uid()
         ds.SeriesInstanceUID = generate_uid()
         ds.SOPInstanceUID = file_meta.MediaStorageSOPInstanceUID
@@ -561,6 +615,7 @@ class TranslateRotateMenu(QtWidgets.QWidget):
 
         return ds
 
+
     def load_fusion_state(self):
         """
         Load a fusion transform state from a DICOM Spatial Registration Object (SRO).
@@ -576,7 +631,6 @@ class TranslateRotateMenu(QtWidgets.QWidget):
         vtk_engine = self._get_vtk_engine_callback() if hasattr(self,
                                                                 "_get_vtk_engine_callback") and self._get_vtk_engine_callback else None
         if vtk_engine is None:
-            QMessageBox.warning(self, "Error", "No VTK engine found.")
             logging.error("No VTK engine found in load_fusion_state")
             return
 
@@ -586,7 +640,6 @@ class TranslateRotateMenu(QtWidgets.QWidget):
             try:
                 ds = pydicom.dcmread(filename)
             except Exception as e:
-                QMessageBox.warning(self, "Error", f"Could not read DICOM file:\n{e}")
                 logging.error(f"Could not read DICOM file:\n{e}")
                 return
 
@@ -596,9 +649,6 @@ class TranslateRotateMenu(QtWidgets.QWidget):
             elif (0x7777, 0x0010) in ds:
                 self._extracted_from_load_fusion_state_sro(ds, np, vtk_engine, filename)
             else:
-                QMessageBox.warning(self, "Error",
-                                    "No spatial registration or transform found in DICOM file.\n"
-                                    "Please select a transform.dcm file created by the Save Fusion State function.")
                 logging.error("No spatial registration found in DICOM file.\nPlease select a transform.dcm file "
                               "created by the Save Fusion State function.")
 
@@ -673,4 +723,7 @@ class TranslateRotateMenu(QtWidgets.QWidget):
         if mw is not None:
             mw.update_views()
 
-        QMessageBox.information(self, "Loaded", f"Spatial Registration loaded from {filename}")
+        if threading.current_thread() is threading.main_thread():
+            QMessageBox.information(self, "Loaded", f"Spatial Registration loaded from {filename}")
+        else:
+            print(f"[INFO] Spatial Registration loaded from {filename}")
