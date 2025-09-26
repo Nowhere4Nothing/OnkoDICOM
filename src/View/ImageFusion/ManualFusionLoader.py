@@ -2,25 +2,29 @@ from PySide6 import QtCore
 import logging
 import os
 from src.Model.PatientDictContainer import PatientDictContainer
+from src.Model.MovingDictContainer import MovingDictContainer
+from src.View.ImageFusion.MovingImageLoader import MovingImageLoader
+
 from src.Model.VTKEngine import VTKEngine
 
-class ManualFusionLoader(QtCore.QObject):
+from src.View.ImageLoader import ImageLoader
+
+class ManualFusionLoader(ImageLoader):
     signal_loaded = QtCore.Signal(object)
     signal_error = QtCore.Signal(object)
 
-    def __init__(self, selected_files, parent=None):
-        super().__init__(parent)
-        self.selected_files = selected_files
+    def __init__(self, selected_files, existing_rtss=None, parent_window=None):
+        super().__init__(selected_files, existing_rtss, parent_window)
 
     def load(self, interrupt_flag=None, progress_callback=None):
         try:
-            self._load_with_vtk(progress_callback)
+            self._load_with_vtk(progress_callback, interrupt_flag)
         except Exception as e:
             if progress_callback is not None:
                 progress_callback.emit(("Error loading images", e))
             self.signal_error.emit((False, e))
 
-    def _load_with_vtk(self, progress_callback):
+    def _load_with_vtk(self, progress_callback, interrupt_flag=None):
         # Progress: loading fixed image
         if progress_callback is not None:
             progress_callback.emit(("Loading fixed image (VTK)...", 10))
@@ -54,8 +58,15 @@ class ManualFusionLoader(QtCore.QObject):
             progress_callback.emit(("Loading overlay image (VTK)...", 50))
 
         moving_loaded = engine.load_moving(moving_dir)
+        
         if not moving_loaded:
             raise RuntimeError("Failed to load moving image with VTK.")
+
+        moving_image_loader = MovingImageLoader(self.selected_files, None, self)
+        moving_model_populated = moving_image_loader.load_manual_mode(interrupt_flag, progress_callback)
+
+        if not moving_model_populated:
+            raise RuntimeError("Failed to populate Moving Model Container")
 
         if progress_callback is not None:
             progress_callback.emit(("Finalising", 90))

@@ -326,7 +326,7 @@ class BaseFusionView(DicomView):
             if hasattr(self.translation_menu, "_get_vtk_engine_callback") and self.translation_menu._get_vtk_engine_callback:
                 engine = self.translation_menu._get_vtk_engine_callback()
             if engine is not None and hasattr(engine, "transform"):
-                self.translation_menu._matrix_dialog.set_matrix(engine.transform)
+                self.translation_menu._matrix_dialog.set_matrix(engine.sitk_matrix)
 
     def _on_mouse_mode_changed(self, mode):
         self.mouse_mode = mode
@@ -502,7 +502,7 @@ class BaseFusionView(DicomView):
             if hasattr(self.translation_menu, "_get_vtk_engine_callback") and self.translation_menu._get_vtk_engine_callback:
                 engine = self.translation_menu._get_vtk_engine_callback()
             if engine is not None and hasattr(engine, "transform"):
-                self.translation_menu._matrix_dialog.set_matrix(engine.transform)
+                self.translation_menu._matrix_dialog.set_matrix(engine.sitk_matrix)
 
     def update_view(self, zoom_change=False):
         """
