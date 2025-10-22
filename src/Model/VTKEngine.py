@@ -293,9 +293,16 @@ class VTKEngine:
         Returns:
             bool: True if the moving image was loaded successfully, False otherwise.
         """
+        print(f"[VTKEngine] load_moving called with dicom_dir: {dicom_dir}")
+        print(f"[VTKEngine] Directory exists: {os.path.exists(dicom_dir)}")
+        print(f"[VTKEngine] Directory contents: {os.listdir(dicom_dir) if os.path.exists(dicom_dir) else 'NOT FOUND'}")
         self.moving_dir = dicom_dir
+
         try:
             slice_dir = prepare_dicom_slice_dir(dicom_dir)
+            print(f"[VTKEngine] prepare_dicom_slice_dir returned: {slice_dir}")
+            print(
+                f"[VTKEngine] slice_dir contents: {os.listdir(slice_dir) if os.path.exists(slice_dir) else 'NOT FOUND'}")
             self._temp_dirs.append(slice_dir)
         except ValueError as e:
             logging.exception(e)
