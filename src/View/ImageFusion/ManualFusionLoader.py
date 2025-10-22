@@ -145,38 +145,16 @@ class ManualFusionLoader(QtCore.QObject):
                     logging.warning("<manualFusionLoader.py_load_with_vtk>Error reading DICOM file", e)
                     continue
 
-        # Defensive: Check for empty selected_image_files
-        print(f"[ManualFusionLoader] selected_files: {self.selected_files}")
-        print(f"[ManualFusionLoader] selected_image_files (after filtering): {selected_image_files}")
-        if not selected_image_files:
-            error_msg = "No valid image files found for moving image."
-            print(f"[ManualFusionLoader] ERROR: {error_msg}")
-
-            logging.error(error_msg)
-            self.signal_error.emit((False, error_msg))
-            return
-
-        # Defensive: Check for valid moving_dir
-        print(f"[ManualFusionLoader] moving_dir: {moving_dir}")
-
-        if not moving_dir or not os.path.exists(moving_dir):
-            error_msg = f"Moving directory does not exist: {moving_dir}"
-            print(f"[ManualFusionLoader] ERROR: {error_msg}")
-
-            logging.error(error_msg)
-            self.signal_error.emit((False, error_msg))
-            return
-
-        print(f"[ManualFusionLoader] moving_dir contents: {os.listdir(moving_dir)}")
-
-
-        # Populate moving model container before processing with VTK so origin can be read the same way as ROI Transfer logic
-        moving_image_loader = MovingImageLoader(selected_image_files, None, self)
-        print(f"[ManualFusionLoader] Created MovingImageLoader with files: {selected_image_files}")
-
-        moving_model_populated = moving_image_loader.load_manual_mode(self._interrupt_flag, progress_callback)
-        print(f"[ManualFusionLoader] moving_model_populated: {moving_model_populated}")
-
+        # On Mac, skip ROI/model population for manual fusion to avoid SIGBUS
+        import platform
+        if platform.system() == "Darwin":
+            logging.warning("Skipping manual fusion ROI/model population on MacOS due to known SIGBUS issue.")
+            moving_model_populated = True
+        else:
+            # Populate moving model container before processing with VTK so origin can be read the same way as ROI Transfer logic
+            moving_image_loader = MovingImageLoader(selected_image_files, None, self)
+            moving_model_populated = moving_image_loader.load_manual_mode(self._interrupt_flag,
+                                                                          progress_callback)
 
         if not moving_model_populated:
             # Check if interrupted, emit cancel signal immediately
@@ -191,8 +169,6 @@ class ManualFusionLoader(QtCore.QObject):
         engine = VTKEngine()
 
         fixed_loaded = engine.load_fixed(fixed_dir)
-        print(f"[ManualFusionLoader] fixed_loaded: {fixed_loaded}")
-
         if not fixed_loaded:
             logging.error("<manualFusionLoader.py>Could not load fixed image")
             raise RuntimeError("Failed to load fixed image with VTK.")
