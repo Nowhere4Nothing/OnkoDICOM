@@ -71,11 +71,13 @@ class ManualFusionLoader(QtCore.QObject):
                 return
             self._load_with_vtk(progress_callback)
         except Exception as e:
+            import traceback
+            stack = traceback.format_exc()
             if progress_callback is not None:
                 progress_callback.emit(("Error loading images", e))
-                logging.exception("Error loading images: %s\n%s", e)
-                self.signal_error.emit((False, e))
-
+                logging.exception("Error loading images: %s\n%s", e,stack)
+                self.signal_error.emit((False, f"{e}\n{stack}"))
+                
     def _load_with_vtk(self, progress_callback):
         """
                 Loads the fixed and moving images using VTK for manual fusion and optionally extracts a saved transform.
