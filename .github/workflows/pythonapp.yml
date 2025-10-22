@@ -283,10 +283,6 @@ jobs:
           unzip DICOM-RT-02.zip -d test/testdata
           unzip DICOM-RT-02.zip -d test/batchtestdata
 
-      - name: Build OnkoDICOM (macOS)
-        run: |
-          poetry build
-
       - name: Testing and Coverage with pytest
         run: |
           poetry run python -m pytest "test/" -v --durations=10 --cov-config=.coveragerc --cov-report term-missing --cov=.
