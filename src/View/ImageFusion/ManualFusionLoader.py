@@ -146,6 +146,7 @@ class ManualFusionLoader(QtCore.QObject):
                     continue
 
         # On Mac, skip ROI/model population for manual fusion to avoid SIGBUS
+        #TODO SOMEONE WITH A MAC NEEDS TO LOOK INTO TRANSFER ROI FOR MAC AS IT ERRORS IN LOADING WORKS WITH WINDOWS / UBUNTU
         import platform
         if platform.system() == "Darwin":
             logging.warning("Skipping manual fusion ROI/model population on MacOS due to known SIGBUS issue.")
