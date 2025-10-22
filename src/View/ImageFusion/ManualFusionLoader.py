@@ -210,11 +210,11 @@ class ManualFusionLoader(QtCore.QObject):
                 self.signal_error.emit((False, f"Error extracting transform: {e}"))
                 return
 
-        # Do any overlay generation or heavy work here if needed
+        # Last message before overlay loaded
         if progress_callback is not None:
             progress_callback(("Preparing overlays...", 90))
             QtCore.QCoreApplication.processEvents()
-            time.sleep(0.5)
+            time.sleep(0.05)
 
         # Final interrupt check before emitting loaded signal
         if self._interrupt_flag is not None and self._interrupt_flag.is_set():
