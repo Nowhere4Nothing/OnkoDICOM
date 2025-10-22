@@ -2,6 +2,7 @@ from PySide6 import QtCore, QtWidgets
 import logging
 import os
 import pydicom
+import platform
 import numpy as np
 from pydicom import dcmread
 from vtkmodules.util import numpy_support
@@ -147,7 +148,6 @@ class ManualFusionLoader(QtCore.QObject):
 
         # On Mac, skip ROI/model population for manual fusion to avoid SIGBUS
         #TODO SOMEONE WITH A MAC NEEDS TO LOOK INTO TRANSFER ROI FOR MAC AS IT ERRORS IN LOADING WORKS WITH WINDOWS / UBUNTU
-        import platform
         if platform.system() == "Darwin":
             logging.warning("Skipping manual fusion ROI/model population on MacOS due to known SIGBUS issue.")
             moving_model_populated = True
@@ -182,7 +182,12 @@ class ManualFusionLoader(QtCore.QObject):
             self.signal_error.emit((False, "Loading cancelled"))
             return
 
-        moving_loaded = engine.load_moving(moving_dir)
+        #TODO SOMEONE WITH A MAC NEEDS TO LOOK INTO TRANSFER ROI FOR MAC AS IT ERRORS IN LOADING WORKS WITH WINDOWS / UBUNTU
+        if platform.system() == "Darwin":
+            logging.warning("Skipping moving image load in manual fusion on MacOS due to known SIGBUS issue.")
+            moving_loaded = True
+        else:
+            moving_loaded = engine.load_moving(moving_dir)
         if not moving_loaded:
             logging.error("<manualFusionLoader.py_load_with_vtk>Failed to load moving image with VTK.")
             raise RuntimeError("Failed to load moving image with VTK.")
