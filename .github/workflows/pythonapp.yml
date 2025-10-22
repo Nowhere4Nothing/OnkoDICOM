@@ -124,10 +124,6 @@ jobs:
         free -m
         ulimit -a
 
-    - name: Build OnkoDICOM (macOS)
-      run: |
-        poetry build
-
     - name: Testing and Coverage with pytest
       run: |
 
@@ -286,6 +282,10 @@ jobs:
           mkdir -p test/batchtestdata
           unzip DICOM-RT-02.zip -d test/testdata
           unzip DICOM-RT-02.zip -d test/batchtestdata
+
+      - name: Build OnkoDICOM (macOS)
+        run: |
+          poetry build
 
       - name: Testing and Coverage with pytest
         run: |
