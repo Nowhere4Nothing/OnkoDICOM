@@ -1,6 +1,8 @@
+import queue
 import threading
 
 from PySide6 import QtGui, QtWidgets
+from pydicom import dcmread
 from PySide6.QtCore import QThreadPool, Qt
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import QWidget, QTreeWidget, QTreeWidgetItem, \
@@ -651,11 +653,6 @@ class UIImageFusionWindow(object):
 
         if self.manual_radio.isChecked():
             # Use the progress window and a manual loader for manual fusion
-            # loader = ManualFusionLoader(selected_files, self.progress_window)
-            # loader.signal_loaded.connect(self.on_loaded)
-            # loader.signal_error.connect(self.on_loading_error)
-            # # Start loading in a thread (simulate progress window behavior)
-            # self.progress_window.start(loader.load)
             from src.View.ImageFusion.ManualFusionLoader import ManualFusionLoader
             pdc = PatientDictContainer()
             patient_name = None
@@ -664,15 +661,32 @@ class UIImageFusionWindow(object):
             if filepaths and isinstance(filepaths, dict):
                 if image_keys := [k for k in filepaths.keys() if str(k).isdigit()]:
                     first_key = sorted(image_keys, key=lambda x: int(x))[0]
-                    from pydicom import dcmread
+
                     ds_fixed = dcmread(filepaths[first_key], stop_before_pixels=True)
                     patient_name = getattr(ds_fixed, "PatientName", None)
                     patient_id = getattr(ds_fixed, "PatientID", None)
 
             loader = ManualFusionLoader(selected_files, self.progress_window, patient_name=patient_name,
                                         patient_id=patient_id)
-            start_method = lambda: self.progress_window.start(loader.load)
+
+            progress_queue = queue.Queue()
+            self.progress_window.set_progress_queue(progress_queue)
+
+
+            def run_loader():
+                try:
+                    loader.load(self.progress_window.interrupt_flag, progress_queue.put)
+                except Exception as e:
+                    import traceback
+                    stack = traceback.format_exc()
+                    loader.signal_error.emit((False, f"{e}\n{stack}"))
+
+            self.progress_window.show()
+            thread = threading.Thread(target=run_loader, daemon=True)
+            thread.start()
+
             signal_source = loader
+            start_method = lambda: None
 
         elif self.auto_radio.isChecked():
             loader = None  # No separate loader needed

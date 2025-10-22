@@ -1,3 +1,5 @@
+import time
+
 from PySide6 import QtCore, QtWidgets
 import logging
 import os
@@ -60,23 +62,27 @@ class ManualFusionLoader(QtCore.QObject):
                Returns:
                    None. Emits the result via the signal_loaded or signal_error signals.
                """
-         # Store interrupt flag
+
+        # Wrap the progress_callback so it always runs in the main thread
+        def main_thread_progress_callback(*args, **kwargs):
+            if progress_callback is not None:
+                progress_callback(*args, **kwargs)
+
         self._interrupt_flag = interrupt_flag
         try:
             # Check for interrupt before starting
             if self._interrupt_flag is not None and self._interrupt_flag.is_set():
-                if progress_callback is not None:
-                    progress_callback.emit(("Loading cancelled", 0))
-                self.signal_error.emit((False, "Loading cancelled"))
+                main_thread_progress_callback(("Loading cancelled", 0))
+                if hasattr(progress_callback, "emit"):
+                    self.signal_error.emit((False, "Loading cancelled"))
                 return
-            self._load_with_vtk(progress_callback)
+            self._load_with_vtk(main_thread_progress_callback)
         except Exception as e:
             import traceback
             stack = traceback.format_exc()
-            if progress_callback is not None:
-                progress_callback.emit(("Error loading images", e))
-                logging.exception("Error loading images: %s\n%s", e,stack)
-                self.signal_error.emit((False, f"{e}\n{stack}"))
+            main_thread_progress_callback(("Error loading images", e))
+            logging.exception("Error loading images: %s\n%s", e, stack)
+            self.signal_error.emit((False, f"{e}\n{stack}"))
 
     def _load_with_vtk(self, progress_callback):
         """
@@ -100,7 +106,7 @@ class ManualFusionLoader(QtCore.QObject):
 
         # Progress: loading fixed image
         if progress_callback is not None:
-            progress_callback.emit(("Loading fixed image (VTK)...", 10))
+            progress_callback(("Loading fixed image (VTK)...", 10))
 
         # Check for interrupt before loading fixed
         if self._interrupt_flag is not None and self._interrupt_flag.is_set():
@@ -126,7 +132,7 @@ class ManualFusionLoader(QtCore.QObject):
                     "Manual fusion requires all files to be from the same directory."
                 )
                 if progress_callback is not None:
-                    progress_callback.emit(("Error loading images", error_msg))
+                    progress_callback(("Error loading images", error_msg))
                     logging.error("manualFusionLoader.py_load_with_vtk: ", error_msg)
                 self.signal_error.emit((False, error_msg))
                 return
@@ -148,15 +154,10 @@ class ManualFusionLoader(QtCore.QObject):
                     logging.warning("<manualFusionLoader.py_load_with_vtk>Error reading DICOM file", e)
                     continue
 
-        # On Mac, skip ROI/model population for manual fusion to avoid SIGBUS
-        #TODO SOMEONE WITH A MAC NEEDS TO LOOK INTO TRANSFER ROI FOR MAC AS IT ERRORS IN LOADING WORKS WITH WINDOWS / UBUNTU
-        if platform.system() == "Darwin":
-            logging.warning("Skipping manual fusion ROI/model population on MacOS due to known SIGBUS issue.")
-            moving_model_populated = True
-        else:
-            # Populate moving model container before processing with VTK so origin can be read the same way as ROI Transfer logic
-            moving_image_loader = MovingImageLoader(selected_image_files, None, self)
-            moving_model_populated = moving_image_loader.load_manual_mode(self._interrupt_flag,
+
+        # Populate moving model container before processing with VTK so origin can be read the same way as ROI Transfer logic
+        moving_image_loader = MovingImageLoader(selected_image_files, None, self)
+        moving_model_populated = moving_image_loader.load_manual_mode(self._interrupt_flag,
                                                                           progress_callback)
 
         if not moving_model_populated:
@@ -177,19 +178,14 @@ class ManualFusionLoader(QtCore.QObject):
             raise RuntimeError("Failed to load fixed image with VTK.")
 
         if progress_callback is not None:
-            progress_callback.emit(("Loading overlay image (VTK)...", 50))
+            progress_callback(("Loading overlay image (VTK)...", 50))
 
         # Check for interrupt before loading moving
         if self._interrupt_flag is not None and self._interrupt_flag.is_set():
             self.signal_error.emit((False, "Loading cancelled"))
             return
 
-        #TODO SOMEONE WITH A MAC NEEDS TO LOOK INTO TRANSFER ROI FOR MAC AS IT ERRORS IN LOADING WORKS WITH WINDOWS / UBUNTU
-        if platform.system() == "Darwin":
-            logging.warning("Skipping moving image load in manual fusion on MacOS due to known SIGBUS issue.")
-            moving_loaded = True
-        else:
-            moving_loaded = engine.load_moving(moving_dir)
+        moving_loaded = engine.load_moving(moving_dir)
         if not moving_loaded:
             logging.error("<manualFusionLoader.py_load_with_vtk>Failed to load moving image with VTK.")
             raise RuntimeError("Failed to load moving image with VTK.")
@@ -199,7 +195,7 @@ class ManualFusionLoader(QtCore.QObject):
         if transform_file is not None:
             try:
                 if progress_callback is not None:
-                    progress_callback.emit(("Extracting saved transform...", 80))
+                    progress_callback(("Extracting saved transform...", 80))
                 ds = pydicom.dcmread(transform_file)
 
                 # See explanation at top for more details on private tags
@@ -210,14 +206,15 @@ class ManualFusionLoader(QtCore.QObject):
             except Exception as e:
                 logging.error(f"Error extracting transform from {transform_file}: {e}")
                 if progress_callback is not None:
-                    progress_callback.emit(("Error extracting transform", 80))
+                    progress_callback(("Error extracting transform", 80))
                 self.signal_error.emit((False, f"Error extracting transform: {e}"))
                 return
 
         # Do any overlay generation or heavy work here if needed
         if progress_callback is not None:
-            progress_callback.emit(("Preparing overlays...", 90))
+            progress_callback(("Preparing overlays...", 90))
             QtCore.QCoreApplication.processEvents()
+            time.sleep(0.5)
 
         # Final interrupt check before emitting loaded signal
         if self._interrupt_flag is not None and self._interrupt_flag.is_set():
@@ -232,7 +229,7 @@ class ManualFusionLoader(QtCore.QObject):
 
         # Emit 100% progress just before closing/loading is complete
         if progress_callback is not None:
-            progress_callback.emit(("Complete", 100))
+            progress_callback(("Complete", 100))
             QtCore.QCoreApplication.processEvents()
 
     def _extracted_from__load_with_vtk_62(self, ds, np, transform_file):

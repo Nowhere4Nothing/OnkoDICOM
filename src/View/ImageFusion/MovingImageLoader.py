@@ -114,10 +114,10 @@ class MovingImageLoader(ImageLoader):
     def load(self, interrupt_flag, progress_callback, manual=False):
         # initial callback
         if manual:
-            progress_callback.emit(("Generating Moving Model", 20))
-        else:
+            progress_callback(("Generating Moving Model", 20))
+        elif hasattr(progress_callback, "emit"):
             progress_callback.emit(("Creating datasets...", 0))
-        
+
         # load datasets and common path
         try:
             path, read_data_dict, file_names_dict = self.get_common_path_and_datasets()
@@ -128,19 +128,19 @@ class MovingImageLoader(ImageLoader):
 
         if interrupt_flag.is_set():
             return False
-        
+
         # check for RTSS and RTDOSE, ask to calculate DVH if both present
         if 'rtss' in file_names_dict and 'rtdose' in file_names_dict:
             self.parent_window.signal_advise_calc_dvh.connect(self.update_calc_dvh)
             self.signal_request_calc_dvh.emit()
             while not self.advised_calc_dvh:
                 pass
-    
+
         # handle RTSS (roi + contour data)
         if 'rtss' in file_names_dict:
             if manual:
-                progress_callback.emit(("Getting ROI + Contour data...", 25))
-            else:
+                progress_callback(("Getting ROI + Contour data...", 25))
+            elif hasattr(progress_callback, "emit"):
                 progress_callback.emit(("Getting ROI + Contour data...", 10))
 
             dataset_rtss, rois, dict_thickness = self.handle_rtss(
@@ -153,8 +153,8 @@ class MovingImageLoader(ImageLoader):
             # handle DVH calculation
             if 'rtdose' in file_names_dict and self.calc_dvh:
                 if manual:
-                    progress_callback.emit(("Calculating DVHs...", 40))
-                else:
+                    progress_callback(("Calculating DVHs...", 40))
+                elif hasattr(progress_callback, "emit"):
                     progress_callback.emit(("Calculating DVHs...", 60))
                 ok = self.handle_dvh(dataset_rtss, rois, dict_thickness,
                                      file_names_dict, moving_dict_container,
@@ -165,22 +165,25 @@ class MovingImageLoader(ImageLoader):
         else:
             # no RTSS present, create temporary RTSS
             if manual:
-                progress_callback.emit(("Generating temporary rtss...", 40))
-            else:
+                progress_callback(("Generating temporary rtss...", 40))
+            elif hasattr(progress_callback, "emit"):
                 progress_callback.emit(("Generating temporary rtss...", 20))
-            
+
             ok = self.create_model_and_rtss(path)
             if not ok or interrupt_flag.is_set():
                 return False
 
         # Show moving model loading
         if manual:
-            progress_callback.emit(("Loading Moving Model", 45))
-        else:
+            progress_callback(("Loading Moving Model", 45))
+        elif hasattr(progress_callback, "emit"):
             progress_callback.emit(("Loading Moving Model", 85))
-        
-        if interrupt_flag.is_set():
+
+        if interrupt_flag.is_set() and manual:
+            progress_callback(("Stopping", 85))
+        elif hasattr(progress_callback, "emit"):
             progress_callback.emit(("Stopping", 85))
+
             return False
 
         return True
