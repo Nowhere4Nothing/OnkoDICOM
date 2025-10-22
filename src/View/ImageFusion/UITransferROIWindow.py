@@ -1,4 +1,5 @@
 import SimpleITK as sitk
+import contextlib
 import numpy as np
 import logging
 from PySide6 import QtCore, QtGui
@@ -447,8 +448,15 @@ class UITransferROIWindow:
         :param progress_callback: signal that receives the current
                                   progress of the loading.
         """
+        import platform
+        if platform.system() == "Darwin":
+            logging.warning("Skipping ROI transfer on MacOS due to known SIGBUS/threading issue.")
+            with contextlib.suppress(Exception):
+                progress_callback.emit(("ROI transfer skipped on MacOS", 90))
+            return False
         try:
             progress_callback.emit(("Fetching image sets", 0))
+
 
             # check if interrupt flag is set
             if not check_interrupt_flag(interrupt_flag):
@@ -482,7 +490,7 @@ class UITransferROIWindow:
 
             # get array of roi indexes from sitk images
             progress_callback \
-                .emit(("Retrieving ROIs from \nboth image sets", 20))
+                    .emit(("Retrieving ROIs from \nboth image sets", 20))
 
             # check if interrupt flag is set
             if not check_interrupt_flag(interrupt_flag):
@@ -495,7 +503,7 @@ class UITransferROIWindow:
                     self._normalize_keys(self.moving_to_fixed_rois.keys()),
                     spacing_override=None,
                     interrupt_flag=interrupt_flag)
-            
+
             else:
                 rois_images_moving = ([], [])
 
@@ -504,7 +512,7 @@ class UITransferROIWindow:
 
             tfm = self.moving_dict_container.get("tfm")
 
-    
+
 
             # Check if there are any ROIs to process ---
             if not self.moving_to_fixed_rois and not self.fixed_to_moving_rois:
@@ -522,7 +530,7 @@ class UITransferROIWindow:
             if self.moving_to_fixed_rois:
                 self.transfer_rois(self.moving_to_fixed_rois, tfm, dicom_image,
                                    rois_images_moving, self.patient_dict_container)
-                
+
             progress_callback.emit(
                 ("Transfering ROIs from fixed \nto moving image set", 60))
 
@@ -546,16 +554,14 @@ class UITransferROIWindow:
             # check if interrupt flag is set
             if not check_interrupt_flag(interrupt_flag):
                 return False
-            
+
             progress_callback.emit(("Reloading window", 90))
             return True
-        
+
         except Exception as e:
-            logging.error(f"Exception in save_clicked: {e}")           
-            try:
+            logging.error(f"Exception in save_clicked: {e}")
+            with contextlib.suppress(Exception):
                 progress_callback.emit(("Error during ROI transfer", 90))
-            except Exception:
-                pass
             return False
 
     def transfer_roi_clicked(self):
