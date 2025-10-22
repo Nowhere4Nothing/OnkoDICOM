@@ -145,6 +145,20 @@ class ManualFusionLoader(QtCore.QObject):
                     logging.warning("<manualFusionLoader.py_load_with_vtk>Error reading DICOM file", e)
                     continue
 
+        # Defensive: Check for empty selected_image_files
+        if not selected_image_files:
+            error_msg = "No valid image files found for moving image."
+            logging.error(error_msg)
+            self.signal_error.emit((False, error_msg))
+            return
+
+        # Defensive: Check for valid moving_dir
+        if not moving_dir or not os.path.exists(moving_dir):
+            error_msg = f"Moving directory does not exist: {moving_dir}"
+            logging.error(error_msg)
+            self.signal_error.emit((False, error_msg))
+            return
+
         # Populate moving model container before processing with VTK so origin can be read the same way as ROI Transfer logic
         moving_image_loader = MovingImageLoader(selected_image_files, None, self)
         moving_model_populated = moving_image_loader.load_manual_mode(self._interrupt_flag, progress_callback)

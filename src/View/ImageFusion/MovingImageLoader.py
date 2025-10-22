@@ -28,7 +28,8 @@ class MovingImageLoader(ImageLoader):
         super(MovingImageLoader, self).__init__(*args, **kwargs)
 
     def get_common_path_and_datasets(self):
-        path = os.path.dirname(os.path.commonprefix(self.selected_files))
+        # Use commonpath for correct path handling (not commonprefix)
+        path = os.path.commonpath(self.selected_files)
         read_data_dict, file_names_dict = ImageLoading.get_datasets(
             self.selected_files
         )
