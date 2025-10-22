@@ -448,12 +448,6 @@ class UITransferROIWindow:
         :param progress_callback: signal that receives the current
                                   progress of the loading.
         """
-        import platform
-        if platform.system() == "Darwin":
-            logging.warning("Skipping ROI transfer on MacOS due to known SIGBUS/threading issue.")
-            with contextlib.suppress(Exception):
-                progress_callback.emit(("ROI transfer skipped on MacOS", 90))
-            return False
         try:
             progress_callback.emit(("Fetching image sets", 0))
 
@@ -566,9 +560,21 @@ class UITransferROIWindow:
 
     def transfer_roi_clicked(self):
         """
-        telling progress window to start ROI transfer
-        """
-        self.progress_window.start(self.save_clicked)
+            telling progress window to start ROI transfer
+            """
+        import threading
+
+        def run_save_clicked():
+            try:
+                result = self.save_clicked(self.progress_window.interrupt_flag, self.progress_window.progress_callback)
+                self.progress_window.signal_loaded.emit((result,))
+            except Exception as e:
+                import traceback
+                stack = traceback.format_exc()
+                self.progress_window.signal_error.emit((False, f"{e}\n{stack}"))
+
+        t = threading.Thread(target=run_save_clicked, daemon=True)
+        t.start()
 
     def onTransferRoiError(self, exception):
         """
