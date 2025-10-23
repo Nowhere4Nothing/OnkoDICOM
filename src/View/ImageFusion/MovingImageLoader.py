@@ -81,8 +81,10 @@ class MovingImageLoader(ImageLoader):
         return True
 
     def create_model_and_rtss(self, path):
-        create_moving_model()
-        return self.load_temp_rtss(path)
+        ok = self.load_temp_rtss(path)
+        if ok:
+            create_moving_model()
+        return ok
 
     def load_temp_rtss(self, path):
         moving_dict_container = MovingDictContainer()
@@ -121,12 +123,26 @@ class MovingImageLoader(ImageLoader):
         # load datasets and common path
         try:
             path, read_data_dict, file_names_dict = self.get_common_path_and_datasets()
-        except ImageLoading.NotAllowedClassError as e:
-            raise ImageLoading.NotAllowedClassError from e
+        except Exception as e:
+            import traceback
+            print("TRACE: Exception in get_common_path_and_datasets:", e)
+            print(traceback.format_exc())
+            if hasattr(progress_callback, "emit"):
+                progress_callback.emit(("Error loading datasets", 10))
+            return False
 
-        moving_dict_container = self.init_container(path, read_data_dict, file_names_dict)
+        try:
+            moving_dict_container = self.init_container(path, read_data_dict, file_names_dict)
+        except Exception as e:
+            import traceback
+            print("TRACE: Exception in init_container:", e)
+            print(traceback.format_exc())
+            if hasattr(progress_callback, "emit"):
+                progress_callback.emit(("Error initializing container", 10))
+            return False
 
         if interrupt_flag.is_set():
+            print("TRACE: MovingImageLoader.load - interrupted before RTSS/RTDOSE check")
             return False
 
         # check for RTSS and RTDOSE, ask to calculate DVH if both present
@@ -135,20 +151,32 @@ class MovingImageLoader(ImageLoader):
             self.signal_request_calc_dvh.emit()
             while not self.advised_calc_dvh:
                 pass
+            print("TRACE: MovingImageLoader.load - DVH advice received:", self.advised_calc_dvh)
+
 
         # handle RTSS (roi + contour data)
-        if 'rtss' in file_names_dict:
-            if manual:
-                progress_callback(("Getting ROI + Contour data...", 25))
-            elif hasattr(progress_callback, "emit"):
-                progress_callback.emit(("Getting ROI + Contour data...", 10))
+            # handle RTSS (roi + contour data)
+            if 'rtss' in file_names_dict:
+                if manual:
+                    progress_callback(("Getting ROI + Contour data...", 25))
+                elif hasattr(progress_callback, "emit"):
+                    progress_callback.emit(("Getting ROI + Contour data...", 10))
 
-            dataset_rtss, rois, dict_thickness = self.handle_rtss(
-                file_names_dict, read_data_dict, moving_dict_container
-            )
+                try:
+                    dataset_rtss, rois, dict_thickness = self.handle_rtss(
+                        file_names_dict, read_data_dict, moving_dict_container
+                    )
+                except Exception as e:
+                    import traceback
+                    print("TRACE: Exception in handle_rtss:", e)
+                    print(traceback.format_exc())
+                    if hasattr(progress_callback, "emit"):
+                        progress_callback.emit(("Error loading RTSS", 10))
+                    return False
 
-            if interrupt_flag.is_set():
-                return False
+                if interrupt_flag.is_set():
+                    print("TRACE: MovingImageLoader.load - interrupted after handle_rtss")
+                    return False
 
             # handle DVH calculation
             if 'rtdose' in file_names_dict and self.calc_dvh:
@@ -170,23 +198,54 @@ class MovingImageLoader(ImageLoader):
                 progress_callback.emit(("Generating temporary rtss...", 20))
 
             ok = self.create_model_and_rtss(path)
-            if not ok or interrupt_flag.is_set():
+            print("TRACE: create_model_and_rtss returned:", ok)
+            print("TRACE: interrupt_flag.is_set() after create_model_and_rtss:", interrupt_flag.is_set())
+            if not ok:
+                print("TRACE: MovingImageLoader.load - create_model_and_rtss failed")
+                return False
+            if interrupt_flag.is_set():
+                print("TRACE: MovingImageLoader.load - interrupted after create_model_and_rtss")
                 return False
 
-        # Show moving model loading
-        if manual:
-            progress_callback(("Loading Moving Model", 45))
-        elif hasattr(progress_callback, "emit"):
-            progress_callback.emit(("Loading Moving Model", 85))
+            # Show moving model loading
+            if manual:
+                progress_callback(("Loading Moving Model", 45))
+            elif hasattr(progress_callback, "emit"):
+                progress_callback.emit(("Loading Moving Model", 85))
 
-        if interrupt_flag.is_set() and manual:
-            progress_callback(("Stopping", 85))
-        elif hasattr(progress_callback, "emit"):
-            progress_callback.emit(("Stopping", 85))
+            print("TRACE: Final interrupt_flag.is_set() =", interrupt_flag.is_set())
+            try:
+                if interrupt_flag.is_set() and manual:
+                    progress_callback(("Stopping", 85))
+                    print("TRACE: MovingImageLoader.load - interrupted at end (manual)")
+                    return False
+                elif interrupt_flag.is_set():
+                    progress_callback.emit(("Stopping", 85))
+                    print("TRACE: MovingImageLoader.load - interrupted at end (auto)")
+                    return False
 
-            return False
+                # --- 90%+: Add stack trace for any exception in final steps ---
+                try:
+                    # Place any finalization code here that could fail after 90%
+                    # For example, if you have any post-processing, overlays, or emits, wrap them:
+                    pass  # (if you have code here, wrap it in this try/except)
+                except Exception as e:
+                    import traceback
+                    print("STACK TRACE: Exception after 90% in MovingImageLoader.load:", e)
+                    print(traceback.format_exc())
+                    if hasattr(progress_callback, "emit"):
+                        progress_callback.emit(("Error after 90%", 95))
+                    return False
 
-        return True
+                print("TRACE: MovingImageLoader.load - returning True (success)")
+                return True
+            except Exception as e:
+                import traceback
+                print("STACK TRACE: Unhandled exception in MovingImageLoader.load:", e)
+                print(traceback.format_exc())
+                if hasattr(progress_callback, "emit"):
+                    progress_callback.emit(("Error after 90%", 95))
+                return False
 
     # manual fusion loader
     def load_manual_mode(self, interrupt_flag, progress_callback):
